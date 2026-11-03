@@ -26,7 +26,7 @@
 
 Playing again from any point re-records only that section. A loop jump also finishes the take.
 
-**REAPER (ARA)**: add PitchNet as an FX on an item or track. The audio is available at once.
+**REAPER (ARA)**: add PitchNet as an FX on an item or track. The audio is available at once. For groups across tracks REAPER lets PitchNet read the other tracks only after the song has played: if the window says *Press Play once*, start playback for a moment.
 
 ## 3. Edit
 

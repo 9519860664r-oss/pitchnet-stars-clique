@@ -44,19 +44,21 @@
 <section class="chapter">
   <div class="kicker">Chapter 1</div>
   <h2>What is PitchNet Stars Clique Edition</h2>
-  <p class="lead">PitchNet is a pitch editor for vocals. It finds the notes in a recording, shows them as blobs on a piano roll and lets you move, stretch, tune and reshape them. A neural vocoder renders the result in real time, so edits sound natural.</p>
+  <p class="lead">PitchNet is a pitch editor for vocals. It finds the notes in a recording, shows them as blobs on a piano roll and lets you move, stretch, tune and reshape them. The edits are rendered in real time, by a neural vocoder or by the classic engine, so they sound natural.</p>
   <p>PitchNet was created by <b>Session Loops and contributors</b> and is based on <b>HachiTune</b> by the HachiTune contributors. The pitch detection, note segmentation, neural vocoder and the editor itself are their work.</p>
-  <p>The <b>Stars Clique Edition</b> is a modified version by Goth Angel (Mikhail Mikhalchenko), Stars Clique. It adds working with many vocal tracks in hosts without ARA, such as FL&nbsp;Studio, tools for backing vocals and tuning, and a new look.</p>
+  <p>The <b>Stars Clique Edition</b> is a modified version by Goth Angel (Mikhail Mikhalchenko), Stars Clique. It adds working with many vocal tracks at once in FL&nbsp;Studio and REAPER, recording from the DAW, tools for backing vocals and tuning, and a new look.</p>
   <div class="grid2">
-    <div class="card"><h4>Multitrack in any host</h4><p>Every PitchNet on every mixer channel appears in one track list. Edit as many tracks at once as you like, show the rest as grey ghosts.</p></div>
+    <div class="card"><h4>Multitrack in FL&nbsp;Studio and REAPER</h4><p>Every vocal track with PitchNet appears in one track list. Edit as many tracks at once as you like, show the rest as grey ghosts.</p></div>
     <div class="card"><h4>Backing vocals to the lead</h4><p>Align timing to a reference track, tune to it in unison or in an interval, level loudness, quantize time.</p></div>
     <div class="card"><h4>Recording from the DAW</h4><p>Transfer records from the DAW, with punch-in, re-recording any section and replace ranges.</p></div>
     <div class="card"><h4>Keys and tuning</h4><p>A key shared by all tracks, key changes along the song, A4 from 400 to 480 Hz and your own scales with cents.</p></div>
   </div>
-  <h3>Neural engine</h3>
+  <h3>Analysis and two engines</h3>
   <ul>
     <li><b>FCPE</b> detects pitch, <b>GAME</b> splits the audio into notes.</li>
-    <li><b>PC-NSF-HiFiGAN</b> resynthesizes the edited voice. Unpitched sounds (breaths, consonants, rasp) stay as in the original.</li>
+    <li><b>AI Resynthesis</b>: the <b>PC-NSF-HiFiGAN</b> neural vocoder rebuilds the edited voice. It handles large pitch moves best. On Windows it runs on the graphics card (DirectML).</li>
+    <li><b>Classic</b>: PSOLA shifts the original recording itself. It needs no model, is much faster on the CPU and leaves untouched audio identical; large pitch moves sound rougher. Computers without a separate graphics card start on Classic.</li>
+    <li>Switch the engine in the parameters panel. With either engine, unpitched sounds (breaths, consonants, rasp) stay as in the original.</li>
     <li>All models run locally on your computer. Nothing is sent anywhere.</li>
   </ul>
 </section>
@@ -69,7 +71,7 @@
   <ul>
     <li>Windows 10 or 11, 64-bit.</li>
     <li>A VST3 host: FL&nbsp;Studio, REAPER, Cubase, Studio One, Ableton Live, Bitwig and others.</li>
-    <li>About 400 MB of disk space (the models take most of it).</li>
+    <li>About 200 MB of disk space (the models take most of it).</li>
   </ul>
   <h3>Install</h3>
   <ol class="steps">
@@ -172,7 +174,7 @@
     <li>Changes made in one window appear in the others right away.</li>
   </ul>
   <h3>Lead and doubles: unison</h3>
-  <p>Doubles usually repeat the lead in places. PitchNet can tune them to the lead note for note.</p>
+  <p>Doubles usually repeat the lead in places. PitchNet can put them on the lead's notes.</p>
   <ol class="steps">
     <li><b>Make a group.</b> Select the lead and its doubles (click, <kbd>Ctrl</kbd>+click) and press <b>Group selected</b>. This window's track leads if it is selected, otherwise the top one; click a double's <b>D</b> to make it the lead instead. Or press <b>Find doubles</b>: PitchNet compares the tracks' notes and suggests groups; nothing changes until you press Create.</li>
     <li><b>Press Unison</b> under the list. It lights up while on: the doubles take the lead's notes. Each double keeps what makes it a separate singer (its own vibrato, jitter, slides and transitions between notes) and takes from the lead only where the notes sit and how they drift. Lead and double are compared at the moments they sing the same sound, so a double sung a little early or late still gets the right note, and the correction changes smoothly at the double's own transitions, without clicks. Octave doubles stay in their octave; the lead's sibilants never set a double's pitch. Where the lead is silent (ad-libs), or a double note is more than about 3.5 semitones from the lead's (another syllable, not a missed note), the double is left alone.</li>
@@ -180,7 +182,7 @@
   </ol>
   <ul>
     <li>While Unison is on, the doubles follow every change to the lead, even with their windows closed.</li>
-    <li>A double note follows the lead note it sounds with the longest, when they sound together for at least a quarter of the double note. Splits and joins line up: inside the note the double follows the lead's pitch frame by frame.</li>
+    <li>A double note takes the pitch the lead sings at the same syllable. Where the lead changes note inside a longer double note, the double follows the change, so the two tracks' notes do not have to be split the same way.</li>
     <li>Switch Unison off, or take a track out of the group, and the doubles go back to their own pitch.</li>
     <li><b>Ungroup</b> (or right-click › <b>Remove from group</b>) takes every selected track out of its group; taking out a lead ends its group. Right-click also offers <b>Add as double to</b>. Groups are saved with the DAW project.</li>
   </ul>
@@ -351,7 +353,7 @@
     <tr><td><kbd>Esc</kbd></td><td>Stop</td></tr>
     <tr><td><kbd>Home</kbd> / <kbd>End</kbd></td><td>Go to start / end</td></tr>
     <tr><td><kbd>Ctrl+Z</kbd></td><td>Undo</td></tr>
-    <tr><td><kbd>Ctrl+Y</kbd>, <kbd>Ctrl+Shift+Z</kbd></td><td>Redo</td></tr>
+    <tr><td><kbd>Ctrl+Y</kbd></td><td>Redo</td></tr>
     <tr><td><kbd>Ctrl+A</kbd></td><td>Select all notes</td></tr>
     <tr><td><kbd>Ctrl+C</kbd> / <kbd>Ctrl+X</kbd> / <kbd>Ctrl+V</kbd></td><td>Copy / cut / paste notes</td></tr>
     <tr><td><kbd>Up</kbd> / <kbd>Down</kbd></td><td>Selected notes a semitone up / down</td></tr>
@@ -380,7 +382,7 @@
     <li>The edited audio itself comes out of your DAW: render or bounce the track as usual.</li>
   </ul>
   <h3>Parameters panel</h3>
-  <p>The button on the far right of the toolbar opens the parameters panel: pitch and timing settings, rendering options, language and interface brightness.</p>
+  <p>The button on the far right of the toolbar opens the parameters panel: pitch and timing settings, the engine (AI Resynthesis or Classic) and, with more than one graphics card, the device it runs on, the language and the interface brightness. Unless you choose a device, PitchNet renders on the fastest graphics card.</p>
 </section>
 
 <!-- ============================== 13 ============================== -->

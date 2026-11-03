@@ -10,7 +10,7 @@
 
 <p align="center">
   <b>A neural vocal pitch editor for VST3 hosts.</b><br>
-  Edit several vocal tracks at once, tune backing vocals to the lead and record straight from FL&nbsp;Studio or any VST3 host.
+  Edit several vocal tracks at once in FL&nbsp;Studio and REAPER, tune backing vocals to the lead and record straight from the DAW.
 </p>
 
 <p align="center">
@@ -31,7 +31,7 @@
 
 **PitchNet** was created by **[Session Loops](https://github.com/SessionLoops/PitchNet) and contributors** (Jie Chen, 一支粉笔, KRKT, hrukalive, Steven Cooper, hyperrealist, 暗雨冥), building on **[HachiTune](https://github.com/KCKT0112/HachiTune)** by the HachiTune contributors. It finds the notes in a vocal recording, shows them as blobs on a piano roll and lets you move, stretch, tune and reshape them, with a neural vocoder rendering the result in real time. All of that is their work.
 
-**The Stars Clique Edition** is a modified version by **Goth Angel (Mikhail Mikhalchenko)**, Stars Clique. It adds multitrack editing and recording for hosts without ARA, such as FL&nbsp;Studio, tools for backing vocals and tuning, and a new look. See [CHANGELOG.md](CHANGELOG.md) for what was added.
+**The Stars Clique Edition** is a modified version by **Goth Angel (Mikhail Mikhalchenko)**, Stars Clique. It adds multitrack editing in FL&nbsp;Studio and REAPER, recording from the DAW in hosts without ARA, tools for backing vocals and tuning, and a new look. See [CHANGELOG.md](CHANGELOG.md) for what was added.
 
 <p align="center">
   <img src="docs/images/stars-clique-notes.png" alt="PitchNet Stars Clique Edition" width="92%">
@@ -41,16 +41,16 @@
 
 | | |
 |---|---|
-| 🎚️ **Multitrack in any host** | Every PitchNet instance appears in one track list. Edit as many tracks at once as you like; show the rest as grey ghost notes. |
+| 🎚️ **Multitrack in FL Studio and REAPER** | Every vocal track with PitchNet appears in one track list. Edit as many tracks at once as you like; show the rest as grey ghost notes. |
 | 🎙️ **Recording from the DAW** | Transfer records from the DAW: several tracks in one pass, punch in/out, re-record any section, replace ranges. |
-| 🎼 **Lead and doubles** | Group a lead with its doubles: **Unison** tunes them to the lead note for note, **Timing** lines them up syllable by syllable, live, even with their windows closed. |
+| 🎼 **Lead and doubles** | Group a lead with its doubles: **Unison** puts them on the lead's notes while each keeps its own vibrato and transitions, **Timing** lines them up syllable by syllable, live, even with their windows closed. |
 | 🐍 **Sibilants** | "s", "sh", "t", "k" and breaths are found and drawn hatched: they keep their own sound when a note is tuned and their length when it is stretched. Sibilant Balance per note. |
 | 🎚️ **Backing vocals to a reference** | Align to a reference track, tune in unison or an interval, level loudness, quantize time. |
 | 🎯 **Note Inspector** | Type pitch (`C3`, `F#4 +10`, `+2`), vibrato, drift, formant and level for the selected notes. |
 | 🎹 **Keys and tuning** | One key for every track, key changes along the song, A4 from 400 to 480&nbsp;Hz, your own scales with cents. |
 | 🧭 **Fast navigation** | Wheel, Shift+wheel, Ctrl+Alt zoom, hand and zoom tools, zoom from the ruler, fit all. |
 | 🌌 **Two skins** | Stars Clique (deep violet glass) and the original Classic look. |
-| 🧠 **Neural engine, offline** | FCPE pitch detection, GAME note segmentation, PC-NSF-HiFiGAN vocoder. Everything runs on your computer. |
+| 🧠 **Two engines, offline** | AI Resynthesis (PC-NSF-HiFiGAN neural vocoder) or Classic (PSOLA), with FCPE pitch detection and GAME note segmentation. Everything runs on your computer, on the fastest graphics card when there is one. |
 
 <table>
   <tr>
@@ -69,7 +69,7 @@
 2. Close your DAW and run the installer.
 3. Rescan plug-ins in your DAW and add **PitchNet (Stars Clique ver)**.
 
-Windows 10/11 64-bit, any VST3 host (FL Studio, REAPER, Cubase, Studio One, Ableton Live, Bitwig…). About 400&nbsp;MB of disk space.
+Windows 10/11 64-bit, any VST3 host (FL Studio, REAPER, Cubase, Studio One, Ableton Live, Bitwig…). About 200&nbsp;MB of disk space.
 
 ## Quick start in FL Studio
 
@@ -93,7 +93,7 @@ cmake --build build --config Release
 
 The VST3 lands in `build/PitchNetPlugin_artefacts/Release/VST3/`. ONNX Runtime and the GAME models are downloaded during configure. The installer is built with [Inno Setup 6](https://jrsoftware.org/isinfo.php) from `packaging/windows/PitchNetStarsClique.iss`; the manuals and images are rendered by `python tools/docs/build.py`.
 
-Optional flags: `-DUSE_DIRECTML=ON` or `-DUSE_CUDA=ON` for GPU inference, `-DPITCHNET_BUILD_TESTS=ON` for the tests (`ctest --test-dir build -C Release`).
+On Windows, GPU inference through DirectML is on by default; for CUDA use `-DUSE_CUDA=ON -DUSE_DIRECTML=OFF`. `-DPITCHNET_BUILD_TESTS=ON` builds the tests (`ctest --test-dir build -C Release`).
 
 ## Credits
 
