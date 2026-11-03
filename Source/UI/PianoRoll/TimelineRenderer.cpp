@@ -8,8 +8,9 @@ void TimelineRenderer::drawTimeline(juce::Graphics &g, const TimelineParams &par
   if (!coordMapper)
     return;
 
-  const auto markerColour = juce::Colour(0xFF0D0B0Bu);
-  const auto markerTextColour = juce::Colour(0xFF9B9B9Bu);
+  const bool sc = Skin::starsClique();
+  const auto markerColour = sc ? juce::Colour(0x1FFFFFFFu) : Skin::colour(0xFF0D0B0Bu);
+  const auto markerTextColour = sc ? juce::Colour(0xFFB4A2D8u) : Skin::colour(0xFF9B9B9Bu);
   constexpr int scrollBarSize = 8;
   const int pianoKeysWidth = CoordinateMapper::pianoKeysWidth;
   const int timelineHeight = CoordinateMapper::timelineHeight;
@@ -23,12 +24,12 @@ void TimelineRenderer::drawTimeline(juce::Graphics &g, const TimelineParams &par
   juce::Graphics::ScopedSaveState savedState(g);
   g.reduceClipRegion(timelineArea);
 
-  // Background
-  g.setColour(juce::Colour(0xFF232323u));
+  // Background (Stars Clique: a faint glass band over the canvas)
+  g.setColour(sc ? juce::Colour(0x0AFFFFFFu) : Skin::colour(0xFF232323u));
   g.fillRect(timelineArea);
 
   // Bottom border
-  g.setColour(juce::Colour(0xFF0D0B0Bu));
+  g.setColour(sc ? juce::Colour(0x0DFFFFFFu) : Skin::colour(0xFF0D0B0Bu));
   g.drawHorizontalLine(timelineHeight - 1, static_cast<float>(pianoKeysWidth),
                        static_cast<float>(params.componentWidth - scrollBarSize));
 
@@ -164,7 +165,8 @@ void TimelineRenderer::drawLoopTimeline(juce::Graphics &g, const LoopParams &par
     return;
 
   constexpr int scrollBarSize = 8;
-  const auto markerColour = juce::Colour(0xFF0D0B0Bu);
+  const bool sc = Skin::starsClique();
+  const auto markerColour = sc ? juce::Colour(0x0DFFFFFFu) : Skin::colour(0xFF0D0B0Bu);
   const int pianoKeysWidth = CoordinateMapper::pianoKeysWidth;
   const int timelineHeight = CoordinateMapper::timelineHeight;
   const int loopTimelineHeight = CoordinateMapper::loopTimelineHeight;
@@ -182,7 +184,7 @@ void TimelineRenderer::drawLoopTimeline(juce::Graphics &g, const LoopParams &par
   juce::Graphics::ScopedSaveState savedState(g);
   g.reduceClipRegion(loopClipArea);
 
-  g.setColour(juce::Colour(0xFF232323u));
+  g.setColour(sc ? juce::Colour(0x2E000000u) : Skin::colour(0xFF232323u));
   g.fillRect(loopArea);
 
   g.setColour(markerColour);
@@ -190,9 +192,9 @@ void TimelineRenderer::drawLoopTimeline(juce::Graphics &g, const LoopParams &par
                        0.0f,
                        static_cast<float>(params.componentWidth - scrollBarSize));
 
-  const auto baseColor = juce::Colour(0xFF888888u);
+  const auto baseColor = sc ? juce::Colour(0xFFC4A0FFu) : Skin::colour(0xFF888888u);
   const auto edgeColor =
-      params.loopEnabled ? baseColor : juce::Colour(0xFF3E3E3Eu);
+      params.loopEnabled ? baseColor : (sc ? juce::Colour(0x66C4A0FFu) : Skin::colour(0xFF3E3E3Eu));
   double loopStartSeconds = params.loopStartSeconds;
   double loopEndSeconds = params.loopEndSeconds;
   if (loopStartSeconds > loopEndSeconds)

@@ -1,4 +1,5 @@
 #include "SelectHandler.h"
+#include "../../../Utils/Constants.h"
 #include "../../PianoRollComponent.h"
 #include "../../../Utils/PitchCurveProcessor.h"
 #include "../../../Utils/ScaleUtils.h"
@@ -65,6 +66,47 @@ bool SelectHandler::mouseDown(const juce::MouseEvent &e, float worldX,
 
   if (note)
   {
+    auto &component = owner_.component();
+    const bool toggle = e.mods.isCtrlDown() || e.mods.isCommandDown();
+    // Ctrl+click adds or removes a note.
+    if (toggle && !e.mods.isShiftDown())
+    {
+      component.rememberSelection();
+      note->setSelected(!note->isSelected());
+      component.selectionAnchor = note;
+      owner_.updatePitchToolHandlesFromSelection();
+      owner_.repaint();
+      return true;
+    }
+    // Shift+click: every note from the last clicked one to this one.
+    if (e.mods.isShiftDown())
+    {
+      component.rememberSelection();
+      Note *anchor = nullptr;
+      for (auto &candidate : project->getNotes())
+        if (&candidate == component.selectionAnchor)
+          anchor = &candidate;
+      const int a = anchor ? anchor->getStartFrame() : note->getStartFrame();
+      const int lo = std::min(a, note->getStartFrame());
+      const int hi = std::max(a, note->getStartFrame());
+      for (auto &candidate : project->getNotes())
+        if (!candidate.isRest() && candidate.getStartFrame() >= lo && candidate.getStartFrame() <= hi)
+          candidate.setSelected(true);
+      owner_.updatePitchToolHandlesFromSelection();
+      owner_.repaint();
+      return true;
+    }
+    // A plain click on an unselected note selects it alone.
+    if (!note->isSelected())
+    {
+      component.rememberSelection();
+      project->deselectAllNotes();
+      note->setSelected(true);
+    }
+    component.selectionAnchor = note;
+    dragAxis = DragAxis::Undecided;
+    axisStartX = worldX;
+    axisStartY = worldY;
     // Check if clicking on an already selected note (for multi-note drag)
     auto selectedNotes = project->getSelectedNotes();
     bool clickedOnSelected =
@@ -129,8 +171,23 @@ bool SelectHandler::mouseDown(const juce::MouseEvent &e, float worldX,
   }
   else
   {
+    auto &component = owner_.component();
+    component.rememberSelection();
+    // Ctrl(Cmd) + box adds to the selection; Shift + drag snakes.
+    const bool additive = (e.mods.isCtrlDown() || e.mods.isCommandDown()) && !e.mods.isShiftDown();
+    if (e.mods.isShiftDown() && !additive)
+    {
+      // Snake selection.
+      snakeSelecting = true;
+      owner_.repaint();
+      return true;
+    }
     // Clicked on empty area - start box selection
-    project->deselectAllNotes();
+    boxInitialSelection.clear();
+    if (additive)
+      boxInitialSelection = project->getSelectedNotes();
+    else
+      project->deselectAllNotes();
     owner_.updatePitchToolHandlesFromSelection();
     owner_.boxSelector->startSelection(worldX, worldY);
     owner_.repaint();
@@ -294,11 +351,25 @@ bool SelectHandler::mouseDrag(const juce::MouseEvent &e, float worldX,
     return true;
   }
 
+  if (snakeSelecting)
+  {
+    if (auto *touched = owner_.findNoteAt(worldX, worldY))
+      if (!touched->isRest() && !touched->isSelected())
+      {
+        touched->setSelected(true);
+        owner_.updatePitchToolHandlesFromSelection();
+        owner_.repaint();
+      }
+    return true;
+  }
+
   // Box selection
   if (owner_.boxSelector->isSelecting())
   {
     owner_.boxSelector->updateSelection(worldX, worldY);
     project->deselectAllNotes();
+    for (auto *kept : boxInitialSelection)
+      kept->setSelected(true);
     auto notesInRect = owner_.boxSelector->getNotesInRect(
         project, owner_.coordMapper.get());
     for (auto *note : notesInRect)
@@ -310,6 +381,25 @@ bool SelectHandler::mouseDrag(const juce::MouseEvent &e, float worldX,
       owner_.lastDragRepaintTime = now;
     }
     return true;
+  }
+
+  if (dragAxis == DragAxis::Time)
+  {
+    updateTimeMove(worldX, e.mods.isAltDown());
+    return true;
+  }
+  if (dragAxis == DragAxis::Undecided &&
+      (owner_.pitchEditor->isDraggingMultiNotes() || (isDragging && draggedNote)))
+  {
+    const float dx = worldX - axisStartX, dy = worldY - axisStartY;
+    if (std::abs(dx) < 4.0f && std::abs(dy) < 4.0f)
+      return true; // not moved far enough to tell the direction yet
+    if (std::abs(dx) > std::abs(dy) && beginTimeMove())
+    {
+      updateTimeMove(worldX, e.mods.isAltDown());
+      return true;
+    }
+    dragAxis = DragAxis::Pitch;
   }
 
   // Multi-note drag
@@ -563,9 +653,18 @@ bool SelectHandler::mouseUp(const juce::MouseEvent &e, float worldX,
     return true;
   }
 
+  if (snakeSelecting)
+  {
+    snakeSelecting = false;
+    owner_.updatePitchToolHandlesFromSelection();
+    owner_.repaint();
+    return true;
+  }
+
   // Box selection end
   if (owner_.boxSelector->isSelecting())
   {
+    boxInitialSelection.clear();
     auto notesInRect = owner_.boxSelector->getNotesInRect(
         project, owner_.coordMapper.get());
     for (auto *note : notesInRect)
@@ -578,6 +677,10 @@ bool SelectHandler::mouseUp(const juce::MouseEvent &e, float worldX,
     owner_.repaint();
     return true;
   }
+
+  if (dragAxis == DragAxis::Time)
+    return finishTimeMove();
+  dragAxis = DragAxis::None;
 
   // Multi-note drag end
   if (owner_.pitchEditor->isDraggingMultiNotes())
@@ -819,6 +922,12 @@ void SelectHandler::mouseDoubleClick(const juce::MouseEvent &e,
         }
       }
 
+      if (handle.type == PitchToolHandles::HandleType::Amplitude)
+      {
+        owner_.toggleMuteSelectedNotes();
+        return;
+      }
+
       // Vibrato/drift: toggle between 0% and 100% (original).
       if (handle.type ==
           PitchToolHandles::HandleType::Vibrato ||
@@ -982,10 +1091,17 @@ void SelectHandler::mouseDoubleClick(const juce::MouseEvent &e,
 
   if (note)
   {
-    auto snapForDoubleClick = [&owner_ = owner_](float midi)
+    // The key at the clicked note (key markers are on the song's timeline).
+    // With the pitch snap set to the scale: the nearest note of the key;
+    // otherwise the nearest semitone (tuned by a custom scale's cents).
+    const auto key = ScaleUtils::keyAt(
+        *project, owner_.coordMapper ? owner_.coordMapper->projectToTimeline(
+                                           framesToSeconds(note->getStartFrame()))
+                                     : framesToSeconds(note->getStartFrame()));
+    const bool toKey = owner_.viewState.dragSnapMode == DragSnapMode::Scale;
+    auto snapForDoubleClick = [&owner_ = owner_, key, toKey](float midi)
     {
-      return ScaleUtils::snapMidiToSemitone(
-          midi, owner_.pitchReferenceHz);
+      return ScaleUtils::pitchCorrectionTarget(midi, key, toKey, owner_.pitchReferenceHz);
     };
 
     if (note->isSelected())
@@ -1003,6 +1119,9 @@ void SelectHandler::mouseDoubleClick(const juce::MouseEvent &e,
         oldOffsets.reserve(selectedNotes.size());
         newMidis.reserve(selectedNotes.size());
 
+        const bool keepIntervals = e.mods.isAltDown();
+        const float clickedMidi = note->getMidiNote() + note->getPitchOffset();
+        const float sharedShift = snapForDoubleClick(clickedMidi) - clickedMidi;
         for (auto *selected : selectedNotes)
         {
           if (!selected || selected->isRest())
@@ -1011,7 +1130,8 @@ void SelectHandler::mouseDoubleClick(const juce::MouseEvent &e,
           float oldMidi = selected->getMidiNote();
           float oldOffset = selected->getPitchOffset();
           float adjustedMidi = oldMidi + oldOffset;
-          float snappedMidi = snapForDoubleClick(adjustedMidi);
+          float snappedMidi = keepIntervals ? adjustedMidi + sharedShift
+                                            : snapForDoubleClick(adjustedMidi);
 
           if (std::abs(snappedMidi - adjustedMidi) <= 0.001f)
             continue;
@@ -1346,4 +1466,125 @@ void SelectHandler::restoreDragBasePreview()
         dragF0Snapshot[static_cast<size_t>(i)];
   }
   lastDragPitchOffset = 0.0f;
+}
+
+bool SelectHandler::beginTimeMove()
+{
+  auto *project = owner_.project;
+  if (!project)
+    return false;
+  std::vector<Note *> notes;
+  if (owner_.pitchEditor->isDraggingMultiNotes())
+  {
+    for (auto *n : owner_.pitchEditor->getDraggedNotes())
+      if (n && !n->isRest())
+        notes.push_back(n);
+    // Undo the (sub-threshold) pitch preview before switching axis.
+    owner_.pitchEditor->updateMultiNoteDrag(axisStartX, axisStartY, true);
+    owner_.pitchEditor->endMultiNoteDrag();
+  }
+  else if (isDragging && draggedNote)
+  {
+    notes.push_back(draggedNote);
+    restoreDragBasePreview();
+    draggedNote->setPitchOffset(0.0f);
+    isDragging = false;
+    draggedNote = nullptr;
+    dragPreviewStartFrame = -1;
+    dragPreviewEndFrame = -1;
+    dragPreviewWeights.clear();
+    dragBasePitchSnapshot.clear();
+    dragF0Snapshot.clear();
+  }
+  if (notes.empty())
+    return false;
+  timeMoveNotes = std::move(notes);
+  timeMoveBefore.clear();
+  for (auto &n : project->getNotes())
+    timeMoveBefore.push_back(NoteTimingState::capture(n));
+  timeMoveFrames = 0;
+  dragAxis = DragAxis::Time;
+  owner_.setMouseCursor(juce::MouseCursor::LeftRightResizeCursor);
+  return true;
+}
+
+void SelectHandler::updateTimeMove(float worldX, bool altDown)
+{
+  auto *project = owner_.project;
+  if (!project || timeMoveNotes.empty())
+    return;
+  const double framesPerSecond =
+      static_cast<double>(SAMPLE_RATE) / static_cast<double>(HOP_SIZE);
+  double deltaSeconds = (worldX - axisStartX) / std::max(1.0f, owner_.pixelsPerSecond);
+  // On the grid by whole grid steps, so a note keeps its offset from the
+  // beat. Alt moves freely.
+  const double grid = owner_.noteTimeGridSeconds();
+  if (!altDown && grid > 1.0e-6)
+    deltaSeconds = std::round(deltaSeconds / grid) * grid;
+  int delta = static_cast<int>(std::lround(deltaSeconds * framesPerSecond));
+  int earliest = std::numeric_limits<int>::max();
+  for (const auto &state : timeMoveBefore)
+    if (std::find(timeMoveNotes.begin(), timeMoveNotes.end(), state.note) != timeMoveNotes.end())
+      earliest = std::min(earliest, state.startFrame);
+  if (earliest != std::numeric_limits<int>::max())
+    delta = std::max(delta, -earliest);
+  if (delta == timeMoveFrames)
+    return;
+  // Preview from the captured state.
+  for (const auto &state : timeMoveBefore)
+    if (state.note)
+    {
+      state.note->setStartFrame(state.startFrame);
+      state.note->setEndFrame(state.endFrame);
+    }
+  for (const auto &state : shiftNotesKeepingJoins(*project, timeMoveNotes, delta))
+  {
+    state.note->setStartFrame(state.startFrame);
+    state.note->setEndFrame(state.endFrame);
+  }
+  timeMoveFrames = delta;
+  owner_.invalidateBasePitchCache();
+  owner_.updatePitchToolHandlesFromSelection();
+  owner_.repaint();
+}
+
+bool SelectHandler::finishTimeMove()
+{
+  auto *project = owner_.project;
+  dragAxis = DragAxis::None;
+  if (!project)
+    return true;
+  std::vector<NoteTimingState> before, after;
+  for (const auto &state : timeMoveBefore)
+  {
+    if (!state.note)
+      continue;
+    if (state.note->getStartFrame() != state.startFrame ||
+        state.note->getEndFrame() != state.endFrame)
+    {
+      before.push_back(state);
+      after.push_back(NoteTimingState::capture(*state.note));
+    }
+    state.note->setStartFrame(state.startFrame);
+    state.note->setEndFrame(state.endFrame);
+  }
+  if (!after.empty())
+  {
+    applyNoteTimingStates(*project, after);
+    owner_.invalidateBasePitchCache();
+    if (owner_.undoManager)
+      owner_.undoManager->addAction(
+          std::make_unique<TimingAction>(*project, before, after));
+    if (owner_.onPitchEditFinished)
+      owner_.onPitchEditFinished();
+  }
+  timeMoveNotes.clear();
+  timeMoveBefore.clear();
+  timeMoveFrames = 0;
+  if (owner_.onNoteDragAuditionFinished)
+    owner_.onNoteDragAuditionFinished();
+  owner_.updatePitchToolHandlesFromSelection();
+  owner_.setMouseCursor(juce::MouseCursor::NormalCursor);
+  owner_.repaint();
+  return true;
 }

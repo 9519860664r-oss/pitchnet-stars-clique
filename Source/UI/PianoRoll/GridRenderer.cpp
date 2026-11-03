@@ -51,13 +51,48 @@ void GridRenderer::draw(juce::Graphics &g, const Params &params)
   const int endMidi = juce::jlimit(MIN_MIDI_NOTE, MAX_MIDI_NOTE,
                                    visibleTopMidi + 1);
 
+  // Stars Clique: thin light hairlines instead of dark lines.
+  const juce::Colour gridLineColour = Skin::starsClique() ? juce::Colour(0x09FFFFFFu) : APP_COLOR_GRID;
+  const juce::Colour gridBarColour = Skin::starsClique() ? juce::Colour(0x1AFFFFFFu) : APP_COLOR_GRID_BAR;
   const bool showScaleOverlay =
       params.scaleMode != ScaleMode::None && params.scaleMode != ScaleMode::Chromatic &&
       params.scaleRootNote >= 0;
-  const auto whiteKeyRowColour = juce::Colour(0xFF1C1C1Bu);
-  const auto blackKeyRowColour = juce::Colour(0xFF151515u);
+  // Stars Clique: rows barely shaded, over the translucent canvas.
+  const bool sc = Skin::starsClique();
+  // Light rows for notes of the key (or white keys), dark rows for the rest:
+  // clearly apart, like a scale highlight in a DAW piano roll.
+  const auto whiteKeyRowColour = sc ? juce::Colours::white.withAlpha(0.055f)
+                                        : Skin::colour(0xFF232322u);
+  const auto blackKeyRowColour = sc ? juce::Colours::black.withAlpha(0.26f)
+                                        : Skin::colour(0xFF121212u);
 
-  if (params.drawRowBackgrounds)
+  if (params.pitchLines)
+  {
+    if (params.drawRowBackgrounds)
+    {
+      g.setColour(whiteKeyRowColour);
+      g.fillRect(visibleStartX, visibleTopY, visibleEndX - visibleStartX,
+                 visibleBottomY - visibleTopY);
+    }
+    for (int midi = startMidi; midi <= endMidi; ++midi)
+    {
+      const int noteInOctave = (midi % 12 + 12) % 12;
+      const bool inScale = !showScaleOverlay ||
+          pianoRollView::getScaleToneState(params.scaleMode, noteInOctave, params.scaleRootNote) !=
+              pianoRollView::ScaleToneState::OutOfScale;
+      const bool root = showScaleOverlay
+          ? pianoRollView::getScaleToneState(params.scaleMode, noteInOctave, params.scaleRootNote) ==
+                pianoRollView::ScaleToneState::Root
+          : noteInOctave == 0;
+      const float y = coordMapper->midiToY(static_cast<float>(midi) + params.pitchAxisOffsetSemitones) +
+                      pixelsPerSemitone * 0.5f;
+      g.setColour(root ? gridBarColour.brighter(0.2f)
+                       : inScale ? gridLineColour.brighter(0.15f) : gridLineColour.darker(0.3f));
+      g.drawHorizontalLine(static_cast<int>(y), visibleStartX, visibleEndX);
+    }
+  }
+
+  if (params.drawRowBackgrounds && !params.pitchLines && !showScaleOverlay)
   {
     for (int midi = startMidi; midi <= endMidi; ++midi)
     {
@@ -71,7 +106,7 @@ void GridRenderer::draw(juce::Graphics &g, const Params &params)
     }
   }
 
-  if (params.drawRowBackgrounds && showScaleOverlay)
+  if (params.drawRowBackgrounds && showScaleOverlay && !params.pitchLines)
   {
     const auto inScaleRowColour = whiteKeyRowColour;
     const auto outOfScaleRowColour = blackKeyRowColour;
@@ -88,13 +123,32 @@ void GridRenderer::draw(juce::Graphics &g, const Params &params)
           static_cast<float>(midi) + params.pitchAxisOffsetSemitones);
       g.fillRect(visibleStartX, y, visibleEndX - visibleStartX, pixelsPerSemitone);
     }
+
+    if (params.scaleMode == ScaleMode::Custom)
+    {
+      g.setColour(sc ? juce::Colour(0x59D8B4FEu) : Skin::colour(0x59FF9D4Du));
+      for (int midi = startMidi; midi <= endMidi; ++midi)
+      {
+        const float cents = ScaleUtils::customCents(midi);
+        if (std::abs(cents) < 0.5f ||
+            !ScaleUtils::isPitchClassInScale(params.scaleMode, midi, params.scaleRootNote))
+          continue;
+        const float y = coordMapper->midiToY(static_cast<float>(midi) + cents / 100.0f +
+                                             params.pitchAxisOffsetSemitones) +
+                        pixelsPerSemitone * 0.5f;
+        const float dash[] = {4.0f, 4.0f};
+        g.drawDashedLine(juce::Line<float>(static_cast<float>(visibleStartX), y,
+                                           static_cast<float>(visibleEndX), y),
+                         dash, 2, 1.0f);
+      }
+    }
   }
 
   if (!params.drawGridLines)
     return;
 
   // Horizontal pitch lines.
-  for (int midi = startMidi; midi <= endMidi; ++midi)
+  for (int midi = startMidi; midi <= endMidi && !params.pitchLines; ++midi)
   {
     const float y = coordMapper->midiToY(
         static_cast<float>(midi) + params.pitchAxisOffsetSemitones);
@@ -102,23 +156,23 @@ void GridRenderer::draw(juce::Graphics &g, const Params &params)
 
     if (!showScaleOverlay)
     {
-      g.setColour(noteInOctave == 0 ? APP_COLOR_GRID_BAR : APP_COLOR_GRID);
+      g.setColour(noteInOctave == 0 ? gridBarColour : gridLineColour);
     }
     else if (pianoRollView::getScaleToneState(params.scaleMode, noteInOctave,
                                               params.scaleRootNote) ==
              pianoRollView::ScaleToneState::Root)
     {
-      g.setColour(APP_COLOR_GRID_BAR);
+      g.setColour(gridBarColour);
     }
     else if (pianoRollView::getScaleToneState(params.scaleMode, noteInOctave,
                                               params.scaleRootNote) ==
              pianoRollView::ScaleToneState::InScale)
     {
-      g.setColour(APP_COLOR_GRID);
+      g.setColour(gridLineColour);
     }
     else
     {
-      g.setColour(APP_COLOR_GRID.darker(0.25f));
+      g.setColour(gridLineColour.darker(0.25f));
     }
 
     g.drawHorizontalLine(static_cast<int>(y), visibleStartX, visibleEndX);
@@ -154,15 +208,15 @@ void GridRenderer::draw(juce::Graphics &g, const Params &params)
         const bool isBarLine = pianoRollView::isMultipleOf(time, params.barSeconds);
         if (isBarLine)
         {
-          g.setColour(APP_COLOR_GRID_BAR);
+          g.setColour(gridBarColour);
         }
         else if (pianoRollView::isMultipleOf(time, params.beatSeconds))
         {
-          g.setColour(APP_COLOR_GRID);
+          g.setColour(gridLineColour);
         }
         else
         {
-          g.setColour(APP_COLOR_GRID.darker(0.2f));
+          g.setColour(gridLineColour.darker(0.2f));
         }
         if (isBarLine)
           g.fillRect(x - 0.5f, visibleTopY, 2.0f,
@@ -190,7 +244,7 @@ void GridRenderer::draw(juce::Graphics &g, const Params &params)
     const float pixelsPerLine = secondsPerLine * pixelsPerSecond;
     if (pixelsPerLine > 1.0e-4f)
     {
-      g.setColour(APP_COLOR_GRID);
+      g.setColour(gridLineColour);
       const double startTime =
           coordMapper->projectToTimeline(visibleStartX / pixelsPerSecond);
       const double endTime =

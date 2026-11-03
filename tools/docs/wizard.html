@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Installer side image</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+  /* 2x of Inno Setup's 164 x 314 wizard image. */
+  html, body { width: 328px; height: 628px; overflow: hidden; }
+  .stage { position: relative; width: 328px; height: 628px; }
+  .logo { position: absolute; left: 34px; top: 70px; width: 260px; }
+  .ed { position: absolute; left: 36px; top: 140px; font-size: 21px; font-weight: 600; color: var(--lilac); }
+  .blobs { position: absolute; left: 0; right: 0; bottom: 120px; height: 260px; }
+  .by { position: absolute; left: 36px; bottom: 50px; font-size: 15px; color: var(--muted); line-height: 1.5; }
+</style>
+</head>
+<body class="glow-bg">
+<div class="stage">
+  <div class="logo" role="img" aria-label="PitchNet"></div>
+  <div class="ed">Stars Clique Edition</div>
+  <svg class="blobs" viewBox="0 0 328 260" aria-hidden="true">
+    <defs>
+      <path id="b" d="M0,20 C4,8 14,4 26,6 C40,8 46,13 60,14 C76,15 88,12 96,16 C100,18 100,22 96,24 C88,28 76,25 60,26 C46,27 40,32 26,34 C14,36 4,32 0,20 Z"/>
+    </defs>
+    <path d="M10 220 C60 120 90 200 130 150 S 200 60 240 110 S 300 70 320 60" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity="0.8"/>
+    <use href="#b" transform="translate(30 150) scale(1.1 1.1)" fill="#C27BFF"/>
+    <use href="#b" transform="translate(130 80) scale(0.95 1)" fill="#F470B4"/>
+    <use href="#b" transform="translate(200 120) scale(1.05 1)" fill="#8098FF"/>
+    <use href="#b" transform="translate(60 40) scale(0.7 0.9)" fill="#FFFFFF" opacity="0.25"/>
+  </svg>
+  <div class="by">PitchNet by Session Loops<br>Edition by Goth Angel</div>
+</div>
+</body>
+</html>

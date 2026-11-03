@@ -1,6 +1,8 @@
 #include "ScaleSelectionControl.h"
 #include "Components/PitchPopupMenu.h"
 #include "../Utils/Localization.h"
+#include "../Utils/CustomScaleLibrary.h"
+#include "../Utils/ScaleNames.h"
 #include <array>
 
 namespace
@@ -116,12 +118,27 @@ void ScaleSelectionControl::showPopup()
             nullptr, label);
     }
 
+    // The user's own scale, its saved versions, and A4.
+    const bool customInUse = selectedMode == ScaleMode::Custom;
+    modeMenu.addSeparator();
+    modeMenu.addItem(modeMenuBaseId + 50, ScaleNames::keyName(0, ScaleMode::Custom), true, customInUse);
+    const auto savedScales = CustomScaleLibrary::load();
+    juce::PopupMenu savedMenu;
+    for (size_t i = 0; i < savedScales.size(); ++i)
+        savedMenu.addItem(7400 + static_cast<int>(i), savedScales[i].name, true,
+                          customInUse && savedScales[i].name == sharedMacroParameters()->customScale.name);
+
     if (!projectKeyScope) {
         menu.addItem(7200, TR("scale.use_project_key"), true, project->getUseProjectKey());
         menu.addSeparator();
     }
     menu.addSubMenu(TR("scale.root"), rootMenu);
     menu.addSubMenu(TR("scale.mode"), modeMenu);
+    menu.addSeparator();
+    menu.addSubMenu(TR("scale.saved_custom"), savedMenu, !savedScales.empty());
+    menu.addItem(7300, TR("scale.edit_custom"));
+    menu.addItem(7500, TR("scale.reference_pitch") + ": " +
+                           juce::String(project->getPitchReferenceHz()) + " Hz...");
     menu.showMenuAsync(
         juce::PopupMenu::Options()
             .withTargetComponent(this)
@@ -143,6 +160,29 @@ void ScaleSelectionControl::showPopup()
                     safeThis->onScaleRootChanged(safeThis->project->getScaleRootNote());
                 if (safeThis->onScaleModeChanged)
                     safeThis->onScaleModeChanged(safeThis->project->getPreferredScaleMode());
+                return;
+            }
+            if (result == 7300) {
+                if (safeThis->onEditCustomScale)
+                    safeThis->onEditCustomScale();
+                return;
+            }
+            if (result == 7500) {
+                if (safeThis->onEditReferencePitch)
+                    safeThis->onEditReferencePitch();
+                return;
+            }
+            if (result >= 7400 && result < 7500) {
+                const auto saved = CustomScaleLibrary::load();
+                const auto index = static_cast<size_t>(result - 7400);
+                if (index < saved.size()) {
+                    sharedMacroParameters()->customScale = saved[index];
+                    safeThis->setScaleMode(ScaleMode::Custom);
+                }
+                return;
+            }
+            if (result == modeMenuBaseId + 50) {
+                safeThis->setScaleMode(ScaleMode::Custom);
                 return;
             }
             const int rootIndex = result - rootMenuBaseId;
@@ -173,7 +213,8 @@ void ScaleSelectionControl::refreshLabel()
         project != nullptr ? (projectKeyScope ? project->getProjectKeyMode() : project->getPreferredScaleMode()) : ScaleMode::Major;
     if (mode == ScaleMode::None || mode == ScaleMode::Chromatic)
         mode = ScaleMode::Major;
-    const auto text = rootLabel(root) + " " + modeLabel(mode);
+    const auto text = mode == ScaleMode::Custom ? ScaleNames::keyName(root, mode)
+                                                : rootLabel(root) + " " + modeLabel(mode);
     if (getButtonText() == text)
         return;
 

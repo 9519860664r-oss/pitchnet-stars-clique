@@ -1,4 +1,5 @@
 #include "SettingsManager.h"
+#include "../../Utils/GpuAdapters.h"
 #include "../../Utils/AppLogger.h"
 #include "../GpuDeviceList.h"
 
@@ -61,6 +62,17 @@ void SettingsManager::loadSettings()
   saveConfig();
 }
 
+juce::String SettingsManager::defaultDevice()
+{
+#if defined(_WIN32) && defined(USE_DIRECTML)
+  return GpuAdapters::hasDiscreteGpu() ? "DirectML" : "CPU";
+#elif defined(USE_CUDA)
+  return "CUDA";
+#else
+  return "CPU";
+#endif
+}
+
 int SettingsManager::getGPUDeviceId() const
 {
   // Until the user picks a device, follow the provider's own default. Doing it
@@ -107,6 +119,13 @@ void SettingsManager::loadConfig()
           device = configObj->getProperty("device").toString();
           hasStoredDeviceSetting = true;
         }
+        // Older versions wrote "CPU" on every save, picked or not, so the
+        // editor rendered on the CPU (or on the integrated GPU) while closed
+        // tracks used the fast one. Only a device the user picked stays.
+        deviceChosenByUser = configObj->hasProperty("deviceChosen") &&
+                             static_cast<bool>(configObj->getProperty("deviceChosen"));
+        if (!deviceChosenByUser && device == "CPU")
+          device = defaultDevice();
 
         if (configObj->hasProperty("threads"))
           threads = static_cast<int>(configObj->getProperty("threads"));
@@ -254,6 +273,8 @@ void SettingsManager::saveConfig()
   juce::DynamicObject::Ptr config = new juce::DynamicObject();
 
   config->setProperty("device", device);
+  if (deviceChosenByUser)
+    config->setProperty("deviceChosen", true);
   config->setProperty("threads", threads);
   config->setProperty("pitchDetector",
                       pitchDetectorTypeToString(pitchDetectorType));

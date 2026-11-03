@@ -1,4 +1,5 @@
 #include "GpuDeviceList.h"
+#include "../Utils/GpuAdapters.h"
 
 #include <cstring>
 #include <map>
@@ -208,8 +209,10 @@ int getDefaultDeviceIndex(const juce::String &providerName)
   if (providerName != "DirectML")
     return 0;
 
+  // Windows' high-performance GPU (DirectML counts adapters in EnumAdapters
+  // order, which does not put the integrated one first on every laptop).
   const auto names = getCachedDeviceNames(providerName);
-  return names.size() > 1 ? names.size() - 1 : 0;
+  return juce::jlimit(0, std::max(0, names.size() - 1), GpuAdapters::fastestDirectMLIndex());
 }
 
 bool hasDeviceChoice(const juce::String &providerName)

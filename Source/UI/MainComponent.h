@@ -1,8 +1,10 @@
 #pragma once
 
 #include "../Audio/EditorController.h"
+#include "../Utils/UI/Skin.h"
 #include "../Audio/ResampledLoopAudition.h"
 #include "IMainView.h"
+#include "Dialogs/CreditsDialog.h"
 #include "../Audio/IO/AudioFileManager.h"
 #include "../JuceHeader.h"
 #include "../Models/Project.h"
@@ -16,6 +18,8 @@
 #include "ParameterPanel.h"
 #include "TrackListPanel.h"
 #include "PianoRollComponent.h"
+#include "Dialogs/MacroDialog.h"
+#include "Dialogs/QuantizePitchDialog.h"
 #include "PianoRollWorkspaceView.h"
 #include "SettingsOverlay.h"
 #include "ToolbarComponent.h"
@@ -49,10 +53,10 @@ public:
 
   void paint(juce::Graphics &g) override {
     auto bounds = getLocalBounds().toFloat();
-    g.setColour(juce::Colour(0xFF333333u));
+    g.setColour(Skin::colour(0xFF333333u));
     g.fillRoundedRectangle(bounds, 7.0f);
 
-    g.setColour(juce::Colour(0xFFEFEFEFu));
+    g.setColour(Skin::colour(0xFFEFEFEFu));
     g.setFont(AppFont::getFont(16.0f));
     g.drawText(TR("progress.analyzing_title"),
                getLocalBounds().withHeight(44).translated(0, 4),
@@ -60,17 +64,17 @@ public:
 
     auto bar = juce::Rectangle<float>(29.0f, 53.0f, bounds.getWidth() - 58.0f, 20.0f);
     const auto barRadius = bar.getHeight() * 0.5f;
-    g.setColour(juce::Colour(0xFF191717u));
+    g.setColour(Skin::colour(0xFF191717u));
     g.fillRoundedRectangle(bar, barRadius);
 
     auto fillBounds = bar.reduced(2.0f);
     auto fill = fillBounds.withWidth(fillBounds.getWidth() * static_cast<float>(progress));
     if (fill.getWidth() > 0.0f) {
-      g.setColour(juce::Colour(0xFF9A9A9Au));
+      g.setColour(Skin::colour(0xFF9A9A9Au));
       g.fillRoundedRectangle(fill, fillBounds.getHeight() * 0.5f);
     }
 
-    g.setColour(juce::Colour(0xFFEFEFEFu));
+    g.setColour(Skin::colour(0xFFEFEFEFu));
     g.setFont(juce::Font(juce::FontOptions(12.0f)).boldened());
     g.drawText(juce::String(static_cast<int>(std::round(progress * 100.0))) + "%",
                bar.toNearestInt(), juce::Justification::centred, false);
@@ -206,6 +210,140 @@ public:
       std::function<void(const juce::String &, bool)> callback) override {
     trackListPanel.onTrackPinChanged = std::move(callback);
   }
+  void setOnTrackTransferToggled(
+      std::function<void(const juce::String &, bool)> callback) override {
+    trackListPanel.onTrackTransferToggled = std::move(callback);
+  }
+  void setOnReferenceNoteDoubleClicked(
+      std::function<void(const juce::String &)> callback) override {
+    pianoRoll.onReferenceNoteDoubleClicked = std::move(callback);
+  }
+  void setOnTrackEditAdded(
+      std::function<void(const juce::String &)> callback) override {
+    trackListPanel.onTrackEditAdded = std::move(callback);
+  }
+  void setTrackGroupCallbacks(TrackGroupCallbacks callbacks) override {
+    trackListPanel.groupCallbacks = std::move(callbacks);
+  }
+  void setCoEditActive(bool active) override {
+    pianoRoll.setCoEditInClipMode(active);
+  }
+  void setEditingMixAvailable(bool available) override {
+    trackListPanel.setEditingMixAvailable(available);
+  }
+  void setOnEditingMixChanged(std::function<void(double)> callback) override {
+    trackListPanel.onEditingMixChanged = std::move(callback);
+  }
+  double getEditingMix() const override { return trackListPanel.getEditingMix(); }
+  void notifyProjectEditedExternally(bool render) override {
+    pianoRoll.invalidateBasePitchCache();
+    pianoRoll.repaint();
+    pianoRollView.refreshOverview();
+    if (render && pianoRoll.onPitchEditFinished)
+      pianoRoll.onPitchEditFinished();
+  }
+  void setReplaceRangesAvailable(bool available) override {
+    pianoRoll.setReplaceRangesAvailable(available);
+  }
+  void setOnReplaceRangesEdited(
+      std::function<void(const std::vector<std::pair<double, double>> &)> callback) override {
+    pianoRoll.onReplaceRangesEdited = std::move(callback);
+  }
+  void setMidiExportTracksProvider(std::function<std::vector<MidiExportTrack>()> provider) override {
+    midiExportTracksProvider = std::move(provider);
+  }
+  bool runEditCommand(const juce::String &command) override {
+    if (command == "copy") return pianoRoll.copySelectedNotes(false);
+    if (command == "cut") return pianoRoll.copySelectedNotes(true);
+    if (command == "paste") return pianoRoll.pasteNotes();
+    if (command == "deselect") {
+      for (auto &target : pianoRoll.editableTracks())
+        for (auto &note : target.project->getNotes()) note.setSelected(false);
+      pianoRoll.repaint();
+      return true;
+    }
+    if (command.startsWith("macro:")) {
+      if (pianoRoll.onMacroRequested)
+        pianoRoll.onMacroRequested(command.fromFirstOccurrenceOf(":", false, false).getIntValue());
+      return true;
+    }
+    if (command == "macrook") { MacroDialog::acceptPopup(); return true; }
+    if (command == "replace:notes") { pianoRoll.setReplaceRangesToNotes(); return true; }
+    if (command == "invertsel") { pianoRoll.invertSelection(); return true; }
+    if (command == "restoresel") { pianoRoll.restoreLastSelection(); return true; }
+    if (command.startsWith("selspecial:")) {
+      pianoRoll.selectSpecial(command.fromFirstOccurrenceOf(":", false, false).getIntValue());
+      return true;
+    }
+    if (command == "mute") { return pianoRoll.toggleMuteSelectedNotes(); }
+    if (command == "restoreall") { pianoRoll.restoreWholeTrack(); return true; }
+    // "keymarker:<seconds>:<root 0-11>:<mode int>" adds a key change.
+    if (command.startsWith("keymarker:")) {
+      const auto parts = juce::StringArray::fromTokens(command, ":", "");
+      if (parts.size() == 4)
+        pianoRoll.addKeyMarker(parts[1].getDoubleValue(), parts[2].getIntValue(),
+                               static_cast<ScaleMode>(parts[3].getIntValue()));
+      return true;
+    }
+    // "customscale": a test scale (C major, E and B 14 cents flat) in use.
+    if (command == "customscale") {
+      auto &shared = *sharedMacroParameters();
+      shared.customScale.name = "Test just";
+      shared.customScale.cents[4] = -14.0f;
+      shared.customScale.cents[11] = -12.0f;
+      shared.projectKeyMode = ScaleMode::Custom;
+      refreshSharedKey();
+      return true;
+    }
+    if (command == "credits") { CreditsDialog::showPopup(this); return true; }
+    // "track:<row>:<row|edit|ghost|rec>[:ctrl|shift]": a click in the track list.
+    if (command.startsWith("track:")) {
+      const auto parts = juce::StringArray::fromTokens(command, ":", "");
+      if (parts.size() >= 3) {
+        const auto mods = parts[3] == "ctrl" ? juce::ModifierKeys(juce::ModifierKeys::commandModifier)
+                        : parts[3] == "shift" ? juce::ModifierKeys(juce::ModifierKeys::shiftModifier)
+                                              : juce::ModifierKeys();
+        const auto point = trackListPanel.pointFor(parts[1].getIntValue(), parts[2]);
+        if (point.x >= 0)
+          trackListPanel.clickAt(point, mods);
+      }
+      return true;
+    }
+    if (command.startsWith("transpose:")) {
+      pianoRoll.transposeSelected(command.fromFirstOccurrenceOf(":", false, false).getIntValue());
+      return true;
+    }
+    // "zoomto:<start s>:<end s>:<low midi>:<high midi>"
+    if (command.startsWith("zoomto:")) {
+      const auto p = juce::StringArray::fromTokens(command, ":", "");
+      if (p.size() == 5)
+        pianoRoll.zoomToRange(p[1].getDoubleValue(), p[2].getDoubleValue(),
+                              p[3].getFloatValue(), p[4].getFloatValue());
+      return true;
+    }
+    // "correctpitch:<percent>:<snap 0|1>": Correct Pitch on the selection.
+    if (command.startsWith("correctpitch:")) {
+      const auto p = juce::StringArray::fromTokens(command, ":", "");
+      pianoRollView.showPitchCenterPopup();
+      QuantizePitchDialog::setAndAccept(p[1].getFloatValue(), p[2].getIntValue() != 0);
+      return true;
+    }
+    if (command == "fitall") { pianoRoll.zoomToFitAll(); return true; }
+    if (command == "zoomprev") { pianoRoll.restorePreviousZoom(); return true; }
+    if (command == "pitchlines") { pianoRoll.setPitchLinesBackground(!pianoRoll.getPitchLinesBackground()); return true; }
+    if (command == "replace:reset") { pianoRoll.resetReplaceRanges(); return true; }
+    if (command.startsWith("macroset:")) {
+      const auto rest = command.fromFirstOccurrenceOf(":", false, false);
+      MacroDialog::setValue(rest.upToFirstOccurrenceOf("=", false, false),
+                            rest.fromFirstOccurrenceOf("=", false, false).getDoubleValue());
+      return true;
+    }
+    if (command.startsWith("cursor:")) {
+      pianoRoll.setCursorTime(command.fromFirstOccurrenceOf(":", false, false).getDoubleValue());
+      return true;
+    }
+    return false;
+  }
   bool getUseDawTrackColour() const override {
     return trackListPanel.getUseDawTrackColour();
   }
@@ -214,8 +352,23 @@ public:
   }
   void updateRegionPreviews(MainViewRegionPreviewList previews) override;
   void setTrackViewModeAvailable(bool available) override;
+  void setTrackListAvailable(bool available) override;
+  void refreshSharedKey() override;
+  // A skin change (from this window or another) re-draws cached layers.
+  void lookAndFeelChanged() override { pianoRoll.refreshSkin(); }
+  void setOwnTrackEditable(bool editable) override { pianoRoll.setOwnTrackEditable(editable); }
+  bool trackListShownByDefault = false;
+  // Auto-scroll: paused while notes are selected or after you
+  // scroll away; reset when playback stops.
+  bool autoScrollPaused = false;
+  double autoScrollLastX = -1.0;
+  void showTrackList(bool show) override;
   bool isTrackViewMode() const override {
     return pianoRollView.isTrackViewMode();
+  }
+  void requestTrackViewMode(bool track) override {
+    if (pianoRollView.isTrackViewMode() != track && toolbar.onTrackViewModeChanged)
+      toolbar.onTrackViewModeChanged(track);
   }
   void setOnTrackViewModeChanged(std::function<void(bool)> callback) override {
     onTrackViewModeChanged = std::move(callback);
@@ -253,7 +406,7 @@ public:
       onProjectDataChanged; // Called when project data is ready or changed
   std::function<void()>
       onPitchEditFinished; // Called when pitch editing is finished
-                           // (Melodyne-style: triggers real-time update)
+                           // (triggers real-time update)
   std::function<void(const Project &)> onRequestBackendRender;
   std::function<void(const Project &, int, int)> onRequestBackendPreview;
   std::function<void()> onStopBackendPreview;
@@ -285,6 +438,9 @@ private:
   void openFile();
   void exportFile();
   void exportMidiFile();
+  bool writeMidiExport(const juce::File &file, const Project &project,
+                       const MidiExportOptions &options);
+  std::function<std::vector<MidiExportTrack>()> midiExportTracksProvider;
   void play();
   void pause();
   void stop();

@@ -1,4 +1,5 @@
 #include "PanelContainer.h"
+#include "../../Utils/UI/Skin.h"
 
 PanelContainer::PanelContainer()
 {
@@ -7,12 +8,17 @@ PanelContainer::PanelContainer()
 
 void PanelContainer::paint(juce::Graphics& g)
 {
-    g.fillAll(juce::Colour(0xFF232323u));
+    if (Skin::starsClique())
+        Skin::paintBackdrop(g, *this);
+    else
+        g.fillAll(Skin::colour(0xFF232323u));
 }
 
 void PanelContainer::paintOverChildren(juce::Graphics& g)
 {
-    g.setColour(juce::Colour(0xFF3C3C3Cu));
+    if (Skin::starsClique())
+        return; // the panels carry their own rounded edges
+    g.setColour(Skin::colour(0xFF3C3C3Cu));
     g.drawRect(getLocalBounds(), 1);
 }
 

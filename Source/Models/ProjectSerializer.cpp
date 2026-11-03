@@ -198,6 +198,29 @@ juce::var ProjectSerializer::toJson(const Project& project,
     obj->setProperty("projectKeyMode", static_cast<int>(project.getProjectKeyMode()));
     obj->setProperty("projectKeyInitialized", project.getMacroParameters()->projectKeyInitialized);
     obj->setProperty("pitchReferenceHz", project.getPitchReferenceHz());
+    {
+        // Shared by every track: the custom scale and the key changes.
+        const auto& shared = *project.getMacroParameters();
+        auto* custom = new juce::DynamicObject();
+        custom->setProperty("name", shared.customScale.name);
+        juce::Array<juce::var> used, cents;
+        for (int i = 0; i < 12; ++i) {
+            used.add(shared.customScale.used[static_cast<size_t>(i)]);
+            cents.add(shared.customScale.cents[static_cast<size_t>(i)]);
+        }
+        custom->setProperty("used", used);
+        custom->setProperty("cents", cents);
+        obj->setProperty("customScale", juce::var(custom));
+        juce::Array<juce::var> markers;
+        for (const auto& marker : shared.keyMarkers) {
+            auto* m = new juce::DynamicObject();
+            m->setProperty("seconds", marker.seconds);
+            m->setProperty("root", marker.root);
+            m->setProperty("mode", static_cast<int>(marker.mode));
+            markers.add(juce::var(m));
+        }
+        obj->setProperty("keyMarkers", markers);
+    }
     obj->setProperty("snapToSemitones", project.getSnapToSemitones());
     obj->setProperty("dragSnapMode",
                      static_cast<int>(project.getDragSnapMode()));
@@ -217,6 +240,26 @@ juce::var ProjectSerializer::toJson(const Project& project,
     loopObj->setProperty("start", loopRange.startSeconds);
     loopObj->setProperty("end", loopRange.endSeconds);
     obj->setProperty("loop", juce::var(loopObj));
+
+    juce::Array<juce::var> replaceArray;
+    for (const auto& range : project.getReplaceRanges()) {
+        juce::Array<juce::var> pair;
+        pair.add(range.first);
+        pair.add(range.second);
+        replaceArray.add(juce::var(pair));
+    }
+    obj->setProperty("replaceRanges", replaceArray);
+
+    if (const auto& group = project.getDoubleGroup(); group.id.isNotEmpty()) {
+        auto* g = new juce::DynamicObject();
+        g->setProperty("id", group.id);
+        g->setProperty("role", group.role);
+        g->setProperty("unisonOn", group.unisonOn);
+        g->setProperty("unisonStrength", group.unisonStrength);
+        g->setProperty("timingOn", group.timingOn);
+        g->setProperty("timingStrength", group.timingStrength);
+        obj->setProperty("doubleGroup", juce::var(g));
+    }
 
     // Notes array
     juce::Array<juce::var> notesArray;
@@ -318,8 +361,9 @@ bool ProjectSerializer::fromJson(Project& project, const juce::var& json) {
     {
         const int scaleModeValue = static_cast<int>(json.getProperty(
             "scaleMode", static_cast<int>(ScaleMode::Chromatic)));
-        if (scaleModeValue >= static_cast<int>(ScaleMode::Chromatic) &&
-            scaleModeValue <= static_cast<int>(ScaleMode::WholeTone))
+        if ((scaleModeValue >= static_cast<int>(ScaleMode::Chromatic) &&
+             scaleModeValue <= static_cast<int>(ScaleMode::WholeTone)) ||
+            scaleModeValue == static_cast<int>(ScaleMode::Custom))
             project.setScaleMode(static_cast<ScaleMode>(scaleModeValue));
         else
             project.setScaleMode(ScaleMode::Chromatic);
@@ -330,8 +374,9 @@ bool ProjectSerializer::fromJson(Project& project, const juce::var& json) {
             activeMode != ScaleMode::Chromatic ? activeMode : ScaleMode::Major;
         const int preferredModeValue = static_cast<int>(json.getProperty(
             "preferredScaleMode", static_cast<int>(preferredDefault)));
-        if (preferredModeValue >= static_cast<int>(ScaleMode::Major) &&
-            preferredModeValue <= static_cast<int>(ScaleMode::WholeTone))
+        if ((preferredModeValue >= static_cast<int>(ScaleMode::Major) &&
+             preferredModeValue <= static_cast<int>(ScaleMode::WholeTone)) ||
+            preferredModeValue == static_cast<int>(ScaleMode::Custom))
             project.setPreferredScaleMode(
                 static_cast<ScaleMode>(preferredModeValue));
     }
@@ -345,6 +390,38 @@ bool ProjectSerializer::fromJson(Project& project, const juce::var& json) {
             ? static_cast<ScaleMode>(detectedMode) : ScaleMode::Major);
     project.setUseProjectKey(static_cast<bool>(json.getProperty("useProjectKey", true)));
     project.setPitchReferenceHz(static_cast<int>(json.getProperty("pitchReferenceHz", 440)));
+    {
+        auto& shared = *project.getMacroParameters();
+        const auto custom = json.getProperty("customScale", juce::var());
+        if (custom.isObject()) {
+            shared.customScale.name = custom.getProperty("name", "").toString();
+            const auto* used = custom.getProperty("used", juce::var()).getArray();
+            const auto* cents = custom.getProperty("cents", juce::var()).getArray();
+            for (int i = 0; i < 12; ++i) {
+                if (used != nullptr && i < used->size())
+                    shared.customScale.used[static_cast<size_t>(i)] = static_cast<bool>((*used)[i]);
+                if (cents != nullptr && i < cents->size())
+                    shared.customScale.cents[static_cast<size_t>(i)] =
+                        juce::jlimit(-50.0f, 50.0f, static_cast<float>(static_cast<double>((*cents)[i])));
+            }
+        }
+        if (const auto* markers = json.getProperty("keyMarkers", juce::var()).getArray()) {
+            shared.keyMarkers.clear();
+            for (const auto& item : *markers) {
+                KeyMarker marker;
+                marker.seconds = static_cast<double>(item.getProperty("seconds", 0.0));
+                marker.root = juce::jlimit(0, 11, static_cast<int>(item.getProperty("root", 0)));
+                const int mode = static_cast<int>(item.getProperty("mode", 1));
+                marker.mode = (mode >= static_cast<int>(ScaleMode::Major) &&
+                               mode <= static_cast<int>(ScaleMode::WholeTone)) ||
+                                      mode == static_cast<int>(ScaleMode::Custom)
+                                  ? static_cast<ScaleMode>(mode) : ScaleMode::Major;
+                shared.keyMarkers.push_back(marker);
+            }
+            std::sort(shared.keyMarkers.begin(), shared.keyMarkers.end(),
+                      [](const KeyMarker& a, const KeyMarker& b) { return a.seconds < b.seconds; });
+        }
+    }
     project.setSnapToSemitones(static_cast<bool>(
         json.getProperty("snapToSemitones", false)));
     {
@@ -399,6 +476,27 @@ bool ProjectSerializer::fromJson(Project& project, const juce::var& json) {
         const double loopEnd = loopVar.getProperty("end", 0.0);
         project.setLoopRange(loopStart, loopEnd);
         project.setLoopEnabled(loopVar.getProperty("enabled", false));
+    }
+
+    {
+        std::vector<std::pair<double, double>> ranges;
+        if (const auto* list = json.getProperty("replaceRanges", juce::var()).getArray())
+            for (const auto& item : *list)
+                if (const auto* pair = item.getArray(); pair != nullptr && pair->size() == 2)
+                    ranges.emplace_back(static_cast<double>((*pair)[0]),
+                                        static_cast<double>((*pair)[1]));
+        project.setReplaceRanges(std::move(ranges));
+    }
+
+    if (const auto groupVar = json.getProperty("doubleGroup", juce::var()); groupVar.isObject()) {
+        Project::DoubleGroup group;
+        group.id = groupVar.getProperty("id", "").toString();
+        group.role = groupVar.getProperty("role", 0);
+        group.unisonOn = groupVar.getProperty("unisonOn", false);
+        group.unisonStrength = static_cast<float>(groupVar.getProperty("unisonStrength", 1.0));
+        group.timingOn = groupVar.getProperty("timingOn", false);
+        group.timingStrength = static_cast<float>(groupVar.getProperty("timingStrength", 1.0));
+        project.setDoubleGroup(group);
     }
 
     // Notes
@@ -661,6 +759,11 @@ bool ProjectSerializer::fromBinaryArchive(Project& project, const void* data,
     if (hasMelSpectrogram) {
         if (!readMel(in, audioData.melSpectrogram))
             return false;
+        // Archives before v10 stored mel framed half a hop early (see
+        // MelSpectrogram::compute). Drop it when the source is here, so the
+        // rebuild below reframes it instead of keeping the late attacks.
+        if (archiveVersion < 10 && hasOriginalWaveform)
+            audioData.melSpectrogram.clear();
     } else {
         audioData.melSpectrogram.clear();
     }
@@ -823,6 +926,41 @@ juce::var ProjectSerializer::noteToJson(const Note& note,
     obj->setProperty("srcEndFrame", note.getSrcEndFrame());
     obj->setProperty("midiNote", note.getMidiNote());
     obj->setProperty("lastNonMacroMidiNote", note.getLastNonMacroMidiNote());
+    if (note.hasUnisonSource())
+    {
+        obj->setProperty("unisonSourceMidi", note.getUnisonSourceMidi());
+        juce::Array<juce::var> delta;
+        for (float v : note.getUnisonSourceDelta())
+            delta.add(v);
+        obj->setProperty("unisonSourceDelta", delta);
+        obj->setProperty("unisonSourceWasBaked", note.getUnisonSourceWasBaked());
+    }
+    if (note.hasSibilantInfo())
+    {
+        obj->setProperty("sibilantHead", note.getSibilantHead());
+        obj->setProperty("sibilantTail", note.getSibilantTail());
+        if (note.getSibilantsSetByHand())
+            obj->setProperty("sibilantsByHand", true);
+    }
+    if (std::abs(note.getSibilantBalance()) > 0.0001f)
+        obj->setProperty("sibilantBalance", note.getSibilantBalance());
+    auto anchorsToVar = [](const std::vector<Note::WarpAnchor>& anchors) {
+        juce::Array<juce::var> list;
+        for (const auto& a : anchors)
+        {
+            list.add(a.src);
+            list.add(a.dst);
+        }
+        return juce::var(list);
+    };
+    if (!note.getWarpAnchors().empty())
+        obj->setProperty("warpAnchors", anchorsToVar(note.getWarpAnchors()));
+    if (note.hasAlignSource())
+    {
+        obj->setProperty("alignSourceStart", note.getAlignSourceStart());
+        obj->setProperty("alignSourceEnd", note.getAlignSourceEnd());
+        obj->setProperty("alignSourceAnchors", anchorsToVar(note.getAlignSourceAnchors()));
+    }
     obj->setProperty("originalMidiNote", note.getOriginalMidiNote());
     obj->setProperty("pitchOffset", note.getPitchOffset());
     obj->setProperty("volumeDb", note.getVolumeDb());
@@ -843,6 +981,8 @@ juce::var ProjectSerializer::noteToJson(const Note& note,
     obj->setProperty("tiltRight", note.getTiltRight());
     obj->setProperty("vibrato", note.getVibrato());
     obj->setProperty("pitchDrift", note.getPitchDrift());
+    if (note.getPitchCenterMacro() >= 0.0f)
+        obj->setProperty("pitchCenterMacro", note.getPitchCenterMacro());
     obj->setProperty("smoothLeftFrames", note.getSmoothLeftFrames());
     obj->setProperty("smoothRightFrames", note.getSmoothRightFrames());
 
@@ -911,8 +1051,36 @@ bool ProjectSerializer::noteFromJson(Note& note, const juce::var& json,
     note.setTiltRight(static_cast<float>(json.getProperty("tiltRight", 0.0)));
     note.setVibrato(static_cast<float>(json.getProperty("vibrato", 1.0)));
     note.setPitchDrift(static_cast<float>(json.getProperty("pitchDrift", 1.0)));
+    note.setPitchCenterMacro(static_cast<float>(json.getProperty("pitchCenterMacro", -1.0)));
+    if (json.hasProperty("unisonSourceMidi"))
+    {
+        note.setUnisonSourceMidi(static_cast<float>(json.getProperty("unisonSourceMidi", 0.0)));
+        std::vector<float> delta;
+        if (const auto* arr = json.getProperty("unisonSourceDelta", juce::var()).getArray())
+            for (const auto& v : *arr)
+                delta.push_back(static_cast<float>(v));
+        note.setUnisonSourceDelta(std::move(delta),
+                                  static_cast<bool>(json.getProperty("unisonSourceWasBaked", false)));
+    }
     note.setSmoothLeftFrames(json.getProperty("smoothLeftFrames", 0));
     note.setSmoothRightFrames(json.getProperty("smoothRightFrames", 0));
+
+    // Sibilants and timing alignment (after the source frames are set).
+    if (json.hasProperty("sibilantHead"))
+        note.setSibilants(json.getProperty("sibilantHead", 0), json.getProperty("sibilantTail", 0),
+                          static_cast<bool>(json.getProperty("sibilantsByHand", false)));
+    note.setSibilantBalance(static_cast<float>(json.getProperty("sibilantBalance", 0.0)));
+    auto varToAnchors = [](const juce::var& v) {
+        std::vector<Note::WarpAnchor> anchors;
+        if (const auto* arr = v.getArray())
+            for (int i = 0; i + 1 < arr->size(); i += 2)
+                anchors.push_back({static_cast<float>((*arr)[i]), static_cast<float>((*arr)[i + 1])});
+        return anchors;
+    };
+    note.setWarpAnchors(varToAnchors(json.getProperty("warpAnchors", juce::var())));
+    if (json.hasProperty("alignSourceStart"))
+        note.setAlignSource(json.getProperty("alignSourceStart", -1), json.getProperty("alignSourceEnd", -1),
+                            varToAnchors(json.getProperty("alignSourceAnchors", juce::var())));
 
     // Per-note original delta pitch (pristine curve from analysis)
     auto origDeltaStr = json.getProperty("originalDeltaPitch", juce::var());

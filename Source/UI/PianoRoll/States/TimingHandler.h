@@ -20,6 +20,9 @@ public:
   void mouseMove(const juce::MouseEvent& e, float worldX,
                  float worldY) override;
   void draw(juce::Graphics& g) override;
+  // Note Separation: double-click a separation between two joined
+  // notes to switch it between soft (gliding pitch) and hard (a jump).
+  void mouseDoubleClick(const juce::MouseEvent& e, float worldX, float worldY) override;
   bool isActive() const override { return dragging || selecting; }
   void cancel() override;
 

@@ -1,4 +1,7 @@
 #include "TimingHandler.h"
+#include "../../../Utils/TransformParams.h"
+#include "../../../Utils/PitchCurveProcessor.h"
+#include "../../../Undo/PitchToolAction.h"
 
 #include "../../PianoRollComponent.h"
 #include "../../../Utils/Constants.h"
@@ -504,11 +507,21 @@ void TimingHandler::draw(juce::Graphics& g)
                                   hoveredBoundaryFrame) < 0.001f;
     const bool highlighted = hovered || (dragging && selected);
     g.setColour(highlighted
-                    ? juce::Colour(0xFFFFFFFFu)
-                    : selected ? juce::Colour(0xFFFFFFFFu)
+                    ? Skin::colour(0xFFFFFFFFu)
+                    : selected ? Skin::colour(0xFFFFFFFFu)
                                : APP_COLOR_TEXT_PRIMARY.withAlpha(0.72f));
     const float width = highlighted || selected ? 2.0f : 1.0f;
-    g.fillRect(x - width * 0.5f, 0.0f, width, canvasHeight);
+    const bool soft = boundary.left && boundary.right &&
+                      boundary.left->getSmoothRightFrames() != 0 &&
+                      boundary.right->getSmoothLeftFrames() != 0;
+    if (soft && !highlighted && !selected)
+    {
+      // Soft separation: dashed, as pitch editors draw it.
+      for (float y = 0.0f; y < canvasHeight; y += 9.0f)
+        g.fillRect(x - width * 0.5f, y, width, 5.0f);
+    }
+    else
+      g.fillRect(x - width * 0.5f, 0.0f, width, canvasHeight);
   }
 
   if (selecting)
@@ -533,5 +546,45 @@ void TimingHandler::cancel()
   selectedBoundaries.clear();
   selectionBaseline.clear();
   hoveredBoundaryFrame = -1.0f;
+  owner_.repaint();
+}
+
+void TimingHandler::mouseDoubleClick(const juce::MouseEvent& e, float worldX, float worldY)
+{
+  juce::ignoreUnused(e);
+  auto* project = owner_.project;
+  if (!project)
+    return;
+  const auto boundaries = buildBoundaries();
+  const int index = findBoundary(worldX, worldY, boundaries);
+  if (index < 0)
+    return;
+  const auto& boundary = boundaries[static_cast<size_t>(index)];
+  if (!boundary.left || !boundary.right)
+    return; // only a separation between two joined notes has a type
+  const bool soft = boundary.left->getSmoothRightFrames() != 0 &&
+                    boundary.right->getSmoothLeftFrames() != 0;
+  std::vector<Note*> notes{boundary.left, boundary.right};
+  std::vector<TransformParams> oldParams, newParams;
+  for (auto* note : notes)
+    oldParams.push_back(TransformParams::fromNote(*note));
+  boundary.left->setSmoothRightFrames(soft ? 0 : 1);
+  boundary.right->setSmoothLeftFrames(soft ? 0 : 1);
+  for (auto* note : notes)
+  {
+    note->markDirty();
+    note->markSynthDirty();
+    newParams.push_back(TransformParams::fromNote(*note));
+  }
+  if (owner_.undoManager)
+    owner_.undoManager->addAction(std::make_unique<PitchToolAction>(
+        project, notes, oldParams, newParams, nullptr));
+  PitchCurveProcessor::rebuildBaseFromNotes(*project);
+  project->markNoteEditDirtyRange(boundary.left->getStartFrame(), boundary.right->getEndFrame());
+  owner_.invalidateBasePitchCache();
+  if (owner_.onPitchEdited)
+    owner_.onPitchEdited();
+  if (owner_.onPitchEditFinished)
+    owner_.onPitchEditFinished();
   owner_.repaint();
 }

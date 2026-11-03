@@ -1,4 +1,5 @@
 #include "ARADocumentController.h"
+#include "../Utils/PerfTrace.h"
 #include "../Utils/AudioResampler.h"
 
 #if JucePlugin_Enable_ARA
@@ -1713,18 +1714,26 @@ void PitchNetDocumentController::didEnableAudioSourceSamplesAccess(
 
 void PitchNetDocumentController::requestRegionCanvasAnalysis(
     juce::ARAPlaybackRegion *region) {
-  if (hostEditing)
+  if (hostEditing) {
+    PerfTrace::mark("canvas analysis: host editing");
     return;
+  }
   auto *processor = getRegionCanvasProcessor();
   if (region == nullptr || processor == nullptr ||
-      processor->isAraCanvasWorkerRunning())
+      processor->isAraCanvasWorkerRunning()) {
+    PerfTrace::mark("canvas analysis: busy or no processor");
     return;
+  }
 
   auto *modification = region->getAudioModification();
   auto *source = modification ? modification->getAudioSource() : nullptr;
   if (source == nullptr || !source->isSampleAccessEnabled() ||
-      source->getSampleRate() <= 0.0)
+      source->getSampleRate() <= 0.0) {
+    PerfTrace::mark(juce::String("canvas analysis: no samples ") +
+                    (source == nullptr ? "no source" : source->isSampleAccessEnabled() ? "rate" : "access off"));
     return; // Samples not ready yet; the sample-access handler will retry.
+  }
+  PerfTrace::mark("canvas analysis: start " + pitchnetRegionKey(*region));
 
   const auto liveKey = pitchnetRegionKey(*region);
   ARA_DIAG("canvasRequest key=" + liveKey + " hasProject=" +

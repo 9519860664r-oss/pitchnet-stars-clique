@@ -33,6 +33,9 @@ public:
     int visibleContentHeight;
     bool drawRowBackgrounds = true;
     bool drawGridLines = true;
+    // "Pitch Lines" background: no keyboard rows, a thin line
+    // through the middle of every semitone instead.
+    bool pitchLines = false;
   };
 
   GridRenderer() = default;

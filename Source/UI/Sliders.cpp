@@ -1,4 +1,5 @@
 #include "Sliders.h"
+#include "../Utils/UI/Skin.h"
 #include <cmath>
 
 namespace
@@ -26,11 +27,11 @@ public:
                 const auto textColour =
                     editor->findColour(juce::TextEditor::textColourId);
                 editor->setColour(juce::TextEditor::highlightColourId,
-                                  juce::Colour(0xFF7A7D8Bu));
+                                  Skin::colour(0xFF7A7D8Bu));
                 editor->setColour(juce::TextEditor::outlineColourId,
-                                  juce::Colour(0xFF3C3C3Cu));
+                                  Skin::colour(0xFF3C3C3Cu));
                 editor->setColour(juce::TextEditor::focusedOutlineColourId,
-                                  juce::Colour(0xFF3C3C3Cu));
+                                  Skin::colour(0xFF3C3C3Cu));
                 editor->setColour(juce::CaretComponent::caretColourId,
                                   textColour);
             }
@@ -72,9 +73,9 @@ SliderBox::SliderBox(juce::String helpText)
     setMouseCursor(juce::MouseCursor::UpDownResizeCursor);
     setLookAndFeel(&getSliderBoxLookAndFeel());
     setColour(juce::Slider::textBoxHighlightColourId,
-              juce::Colour(0xFF7A7D8Bu));
+              Skin::colour(0xFF7A7D8Bu));
     setColour(juce::Slider::textBoxOutlineColourId,
-              juce::Colour(0xFF3C3C3Cu));
+              Skin::colour(0xFF3C3C3Cu));
 }
 
 SliderBox::~SliderBox()

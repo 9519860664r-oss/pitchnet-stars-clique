@@ -1,4 +1,5 @@
 #include "ParameterPanel.h"
+#include "../Utils/UI/Skin.h"
 #include "../Utils/Localization.h"
 #include <array>
 #include <cmath>
@@ -145,7 +146,7 @@ public:
         setColour(juce::PopupMenu::backgroundColourId, juce::Colours::transparentBlack);
         setColour(juce::PopupMenu::textColourId, APP_COLOR_TEXT_PRIMARY);
         setColour(juce::PopupMenu::highlightedBackgroundColourId,
-                  juce::Colour(0xFF171717u));
+                  Skin::colour(0xFF171717u));
         setColour(juce::PopupMenu::highlightedTextColourId, APP_COLOR_TEXT_PRIMARY);
     }
 
@@ -157,9 +158,9 @@ public:
         juce::Path shape;
         shape.addRoundedRectangle(area, 9.0f);
 
-        g.setColour(juce::Colour(0xFF30302Eu));
+        g.setColour(Skin::colour(0xFF30302Eu));
         g.fillPath(shape);
-        g.setColour(juce::Colour(0xFF3E3E3Eu));
+        g.setColour(Skin::colour(0xFF3E3E3Eu));
         g.strokePath(shape, juce::PathStrokeType(1.0f));
     }
 
@@ -202,13 +203,13 @@ public:
         const auto area = getLocalBounds().toFloat();
         if (isItemHighlighted())
         {
-            g.setColour(juce::Colour(0xFF171717u));
+            g.setColour(Skin::colour(0xFF171717u));
             g.fillRoundedRectangle(area.reduced(2.0f, 1.0f), 5.0f);
         }
 
         if (isSelected)
         {
-            g.setColour(juce::Colour(0xFFEFEFEFu));
+            g.setColour(Skin::colour(0xFFEFEFEFu));
             g.fillEllipse(8.0f, area.getCentreY() - 3.5f, 7.0f, 7.0f);
         }
 
@@ -242,22 +243,22 @@ private:
 ParameterPanel::ParameterPanel()
 {
     addAndMakeVisible(pitchSectionLabel);
-    pitchSectionLabel.setColour(juce::Label::textColourId, juce::Colour(0xFF9B9B9Bu));
+    pitchSectionLabel.setColour(juce::Label::textColourId, Skin::colour(0xFF9B9B9Bu));
     pitchSectionLabel.setFont(AppFont::getBoldFont(16.0f));
     addAndMakeVisible(timeSectionLabel);
-    timeSectionLabel.setColour(juce::Label::textColourId, juce::Colour(0xFF9B9B9Bu));
+    timeSectionLabel.setColour(juce::Label::textColourId, Skin::colour(0xFF9B9B9Bu));
     timeSectionLabel.setFont(AppFont::getBoldFont(16.0f));
     addAndMakeVisible(synthesisSectionLabel);
-    synthesisSectionLabel.setColour(juce::Label::textColourId, juce::Colour(0xFF9B9B9Bu));
+    synthesisSectionLabel.setColour(juce::Label::textColourId, Skin::colour(0xFF9B9B9Bu));
     synthesisSectionLabel.setFont(AppFont::getBoldFont(16.0f));
     addAndMakeVisible(brightnessSectionLabel);
     brightnessSectionLabel.setColour(juce::Label::textColourId,
-                                     juce::Colour(0xFF9B9B9Bu));
+                                     Skin::colour(0xFF9B9B9Bu));
     brightnessSectionLabel.setFont(AppFont::getBoldFont(16.0f));
 
     // Language card: always present, directly below Rendering.
     addAndMakeVisible(languageSectionLabel);
-    languageSectionLabel.setColour(juce::Label::textColourId, juce::Colour(0xFF9B9B9Bu));
+    languageSectionLabel.setColour(juce::Label::textColourId, Skin::colour(0xFF9B9B9Bu));
     languageSectionLabel.setFont(AppFont::getBoldFont(16.0f));
     addAndMakeVisible(languageSelectorButton);
     languageSelectorButton.addListener(this);
@@ -289,7 +290,7 @@ ParameterPanel::ParameterPanel()
     // engine is AI Resynthesis and there is more than one device to run it on
     // (see setRenderDeviceOptions).
     addChildComponent(renderDeviceLabel);
-    renderDeviceLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFE6E6E6u));
+    renderDeviceLabel.setColour(juce::Label::textColourId, Skin::colour(0xFFE6E6E6u));
     renderDeviceLabel.setFont(AppFont::getFont(15.0f));
     addChildComponent(renderDeviceButton);
     renderDeviceButton.addListener(this);
@@ -304,7 +305,7 @@ ParameterPanel::ParameterPanel()
     for (auto* label : { &referenceLabel, &timelineBeatLabel,
                          &timelineTempoLabel, &timelineGridLabel })
     {
-        label->setColour(juce::Label::textColourId, juce::Colour(0xFFE6E6E6u));
+        label->setColour(juce::Label::textColourId, Skin::colour(0xFFE6E6E6u));
         label->setFont(AppFont::getFont(16.0f));
     }
     referenceLabel.setFont(AppFont::getFont(15.0f));
@@ -319,22 +320,22 @@ ParameterPanel::ParameterPanel()
         button->addListener(this);
     }
 
-    referenceSlider.setRange(420.0, 450.0, 1.0);
+    referenceSlider.setRange(400.0, 480.0, 1.0);
     referenceSlider.setValue(pitchReferenceHz, juce::dontSendNotification);
     referenceSlider.setNumDecimalPlacesToDisplay(0);
     referenceSlider.setTextValueSuffix(" Hz");
     referenceSlider.setHideSuffixWhileEditing(true);
     referenceSlider.setTextBoxStyle(juce::Slider::TextBoxLeft, false, 64, 22);
     referenceSlider.setColour(juce::Slider::backgroundColourId,
-                              juce::Colour(0xFF30302Eu));
+                              Skin::colour(0xFF30302Eu));
     referenceSlider.setColour(juce::Slider::trackColourId,
-                              juce::Colour(0xFF30302Eu));
+                              Skin::colour(0xFF30302Eu));
     referenceSlider.setColour(juce::Slider::textBoxBackgroundColourId,
                               juce::Colours::transparentBlack);
     referenceSlider.setColour(juce::Slider::textBoxOutlineColourId,
                               juce::Colours::transparentBlack);
     referenceSlider.setColour(juce::Slider::textBoxTextColourId,
-                              juce::Colour(0xFFE6E6E6u));
+                              Skin::colour(0xFFE6E6E6u));
     referenceSlider.onValueChange = [this]()
     {
         if (!isUpdating)
@@ -348,15 +349,15 @@ ParameterPanel::ParameterPanel()
     timelineTempoSlider.setNumDecimalPlacesToDisplay(2);
     timelineTempoSlider.setTextBoxStyle(juce::Slider::TextBoxLeft, false, 54, 22);
     timelineTempoSlider.setColour(juce::Slider::backgroundColourId,
-                                  juce::Colour(0xFF30302Eu));
+                                  Skin::colour(0xFF30302Eu));
     timelineTempoSlider.setColour(juce::Slider::trackColourId,
-                                  juce::Colour(0xFF30302Eu));
+                                  Skin::colour(0xFF30302Eu));
     timelineTempoSlider.setColour(juce::Slider::textBoxBackgroundColourId,
                                   juce::Colours::transparentBlack);
     timelineTempoSlider.setColour(juce::Slider::textBoxOutlineColourId,
                                   juce::Colours::transparentBlack);
     timelineTempoSlider.setColour(juce::Slider::textBoxTextColourId,
-                                  juce::Colour(0xFFE6E6E6u));
+                                  Skin::colour(0xFFE6E6E6u));
     timelineTempoSlider.onValueChange = [this]()
     {
         if (!isUpdating)
@@ -421,7 +422,7 @@ void ParameterPanel::paint(juce::Graphics& g)
     if (!pitchCardBounds.isEmpty())
     {
         auto pitchRect = pitchCardBounds.toFloat();
-        g.setColour(juce::Colour(0xFF171717u));
+        g.setColour(Skin::colour(0xFF171717u));
         g.fillRoundedRectangle(pitchRect, radius);
         g.setColour(APP_COLOR_BORDER.withAlpha(0.4f));
         g.drawRoundedRectangle(pitchRect.reduced(0.5f), radius, 0.75f);
@@ -430,7 +431,7 @@ void ParameterPanel::paint(juce::Graphics& g)
     if (!timeCardBounds.isEmpty())
     {
         auto timeRect = timeCardBounds.toFloat();
-        g.setColour(juce::Colour(0xFF171717u));
+        g.setColour(Skin::colour(0xFF171717u));
         g.fillRoundedRectangle(timeRect, radius);
         g.setColour(APP_COLOR_BORDER.withAlpha(0.4f));
         g.drawRoundedRectangle(timeRect.reduced(0.5f), radius, 0.75f);
@@ -439,7 +440,7 @@ void ParameterPanel::paint(juce::Graphics& g)
     if (!synthesisCardBounds.isEmpty())
     {
         auto synthesisRect = synthesisCardBounds.toFloat();
-        g.setColour(juce::Colour(0xFF171717u));
+        g.setColour(Skin::colour(0xFF171717u));
         g.fillRoundedRectangle(synthesisRect, radius);
         g.setColour(APP_COLOR_BORDER.withAlpha(0.4f));
         g.drawRoundedRectangle(synthesisRect.reduced(0.5f), radius, 0.75f);
@@ -448,7 +449,7 @@ void ParameterPanel::paint(juce::Graphics& g)
     if (!languageCardBounds.isEmpty())
     {
         auto languageRect = languageCardBounds.toFloat();
-        g.setColour(juce::Colour(0xFF171717u));
+        g.setColour(Skin::colour(0xFF171717u));
         g.fillRoundedRectangle(languageRect, radius);
         g.setColour(APP_COLOR_BORDER.withAlpha(0.4f));
         g.drawRoundedRectangle(languageRect.reduced(0.5f), radius, 0.75f);
@@ -457,7 +458,7 @@ void ParameterPanel::paint(juce::Graphics& g)
     if (!brightnessCardBounds.isEmpty())
     {
         auto brightnessRect = brightnessCardBounds.toFloat();
-        g.setColour(juce::Colour(0xFF171717u));
+        g.setColour(Skin::colour(0xFF171717u));
         g.fillRoundedRectangle(brightnessRect, radius);
         g.setColour(APP_COLOR_BORDER.withAlpha(0.4f));
         g.drawRoundedRectangle(brightnessRect.reduced(0.5f), radius, 0.75f);
@@ -1198,7 +1199,7 @@ void ParameterPanel::setDragSnapModeInternal(DragSnapMode mode, bool notify)
 
 void ParameterPanel::setPitchReferenceInternal(int hz, bool notify)
 {
-    const int normalized = juce::jlimit(420, 450, hz);
+    const int normalized = juce::jlimit(400, 480, hz);
     const bool changed = pitchReferenceHz != normalized;
     pitchReferenceHz = normalized;
     referenceSlider.setValue(normalized, juce::dontSendNotification);

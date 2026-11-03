@@ -33,7 +33,7 @@ void PitchDrawingConfirmationPanel::refreshLocalisedText()
 void PitchDrawingConfirmationPanel::paint(juce::Graphics& g)
 {
     const auto bounds = getLocalBounds().toFloat();
-    g.setColour(juce::Colour(0xFF2E2E2D));
+    g.setColour(Skin::colour(0xFF2E2E2Du));
     g.fillRoundedRectangle(bounds, 8.0f);
     g.setColour(APP_COLOR_BORDER.withAlpha(0.65f));
     g.drawRoundedRectangle(bounds.reduced(0.5f), 8.0f, 1.0f);

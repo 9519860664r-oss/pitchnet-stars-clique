@@ -2,6 +2,7 @@
 
 #include "../JuceHeader.h"
 #include "RegionPreview.h"
+#include "../Audio/IO/MidiExporter.h"
 #include <functional>
 #include <memory>
 #include <vector>
@@ -44,7 +45,32 @@ struct MainViewTrackEntry {
   juce::String name;
   juce::Colour colour;        // the DAW's colour; only valid if hasHostColour
   bool hasHostColour = false; // false when the DAW sent no colour via ARA
-  bool pinned = false;        // notes drawn on the canvas; never the active track
+  bool pinned = false;        // Reference: notes drawn grey on the canvas
+  // Header extras (hosts without ARA):
+  bool ownWindow = false;         // the star: this window's own instance
+  bool transferAvailable = false; // show the Transfer (record) button
+  bool transferArmed = false;     // Transfer on: waiting for or recording audio
+  bool transferActive = false;    // audio is being recorded right now
+  bool coEdited = false;          // also open for editing (Ctrl+Edit)
+  // Lead and doubles: tracks with the same group id; role 1 lead, 2 double.
+  // The lead's entry carries the group's unison switch and strength.
+  juce::String groupId;
+  int role = 0;
+  bool unisonOn = false;
+  float unisonStrength = 1.0f;
+  bool timingOn = false;
+  float timingStrength = 1.0f;
+};
+
+/** Track list actions for lead / doubles groups. */
+struct TrackGroupCallbacks {
+  std::function<void(const juce::String &lead, const std::vector<juce::String> &doubles)> makeGroup;
+  std::function<void(const juce::String &key, const juce::String &groupId)> addToGroup;
+  std::function<void(const juce::String &key)> removeFromGroup;
+  std::function<void(const juce::String &key)> setLead; // a double becomes its group's lead
+  std::function<void(const juce::String &groupId, bool on, float strength)> setUnison;
+  std::function<void(const juce::String &groupId, bool on, float strength)> setTiming;
+  std::function<void()> findDoubles;
 };
 
 /** Track colour when the DAW sends none, or "Use DAW Track Color" is off. */
@@ -113,6 +139,42 @@ public:
   /** Called with a track key and the new state when a track's pin is toggled. */
   virtual void setOnTrackPinChanged(
       std::function<void(const juce::String &, bool)> callback) = 0;
+  /** Called with a track key and the requested state when its Transfer
+      button is clicked (hosts without ARA). */
+  virtual void setOnTrackTransferToggled(
+      std::function<void(const juce::String &, bool)>) {}
+  /** Called with a track key when a reference (grey) note of that track is
+      double-clicked on the canvas: the two tracks swap roles. */
+  virtual void setOnReferenceNoteDoubleClicked(
+      std::function<void(const juce::String &)>) {}
+  /** Called with a track key on Ctrl/Cmd+click of its Edit button: open it
+      for editing alongside the current track (or close it again). */
+  virtual void setOnTrackEditAdded(std::function<void(const juce::String &)>) {}
+  /** Other tracks are open for editing in this canvas (hosts without ARA). */
+  virtual void setCoEditActive(bool) {}
+  /** Another window edited this window's project (both windows edit the
+      same tracks): redraw, and render when `render`. */
+  virtual void notifyProjectEditedExternally(bool) {}
+  /** The key, A4, custom scale or key changes (shared by every track)
+      changed, maybe in another window: re-read and redraw. */
+  virtual void refreshSharedKey() {}
+  /** The window's own track switched on or off for editing (Edit). */
+  virtual void setOwnTrackEditable(bool) {}
+  /** Editing Mix Fader (hosts without ARA): show it, and hear about moves. */
+  virtual void setEditingMixAvailable(bool) {}
+  virtual void setOnEditingMixChanged(std::function<void(double)>) {}
+  virtual double getEditingMix() const { return 0.0; }
+  /** Replace Ranges on the time ruler (Transfer without ARA). */
+  virtual void setReplaceRangesAvailable(bool) {}
+  virtual void setOnReplaceRangesEdited(
+      std::function<void(const std::vector<std::pair<double, double>> &)>) {}
+  /** MIDI export: every track shown in the editor, each on its own channel.
+      The provider returns them all, this one included; none or one track
+      exports this track alone. */
+  virtual void setMidiExportTracksProvider(std::function<std::vector<MidiExportTrack>()>) {}
+  /** Edit commands by name, for test scripts: "copy", "cut", "paste",
+      "deselect", "cursor:<seconds>". Returns false when unknown. */
+  virtual bool runEditCommand(const juce::String &) { return false; }
   /** State of the "Use DAW Track Color" switch. */
   virtual bool getUseDawTrackColour() const = 0;
   /** Called after the "Use DAW Track Color" switch changes. */
@@ -139,7 +201,16 @@ public:
    * mode available shows its toggle button and restores the saved choice.
    */
   virtual void setTrackViewModeAvailable(bool available) = 0;
+  /** Show the left track list without the Clip / Track toggle (hosts without
+      ARA list the other PitchNet instances there). Pinned tracks' notes are
+      then drawn in Clip mode too. */
+  virtual void setTrackListAvailable(bool) {}
+  virtual void setTrackGroupCallbacks(TrackGroupCallbacks) {}
+  /** Open or close the left track list, as its toolbar button does. */
+  virtual void showTrackList(bool) {}
   virtual bool isTrackViewMode() const = 0;
+  /** Switch Clip / Track view as the toolbar toggle does. */
+  virtual void requestTrackViewMode(bool) {}
   virtual void setOnTrackViewModeChanged(
       std::function<void(bool)> callback) = 0;
   /**

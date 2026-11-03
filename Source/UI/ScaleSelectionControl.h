@@ -25,6 +25,12 @@ public:
     std::function<void(std::optional<int>)> onScaleRootPreviewChanged;
     std::function<void(std::optional<ScaleMode>)> onScaleModePreviewChanged;
     std::function<void()> onPreferredWidthChanged;
+    // "Edit custom scale..." and "Reference pitch (A4)..." in the menu.
+    std::function<void()> onEditCustomScale;
+    std::function<void()> onEditReferencePitch;
+    /** Re-reads the key (it is shared by every track and may change in
+        another window). */
+    void refreshFromProject() { refreshLabel(); }
 
     void previewScaleRoot(std::optional<int> rootNote);
     void previewScaleMode(std::optional<ScaleMode> mode);

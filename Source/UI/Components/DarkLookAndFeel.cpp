@@ -1,4 +1,5 @@
 #include "DarkLookAndFeel.h"
+#include "../../Utils/UI/Skin.h"
 
 DarkLookAndFeel::DarkLookAndFeel()
 {
@@ -20,10 +21,10 @@ DarkLookAndFeel::DarkLookAndFeel()
     setColour(juce::Label::backgroundColourId, juce::Colours::transparentBlack);
 
     // ── TextButton ────────────────────────────────────────────────
-    setColour(juce::TextButton::buttonColourId, juce::Colour(0xFF5B5B5Bu));
-    setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xFF3E3E3Eu));
-    setColour(juce::TextButton::textColourOffId, juce::Colour(0xFFEFEFEFu));
-    setColour(juce::TextButton::textColourOnId, juce::Colour(0xFFEFEFEFu));
+    setColour(juce::TextButton::buttonColourId, Skin::colour(0xFF5B5B5Bu));
+    setColour(juce::TextButton::buttonOnColourId, Skin::colour(0xFF3E3E3Eu));
+    setColour(juce::TextButton::textColourOffId, Skin::colour(0xFFEFEFEFu));
+    setColour(juce::TextButton::textColourOnId, Skin::colour(0xFFEFEFEFu));
 
     // ── ListBox ───────────────────────────────────────────────────
     setColour(juce::ListBox::backgroundColourId, APP_COLOR_SURFACE);
@@ -51,9 +52,9 @@ DarkLookAndFeel::DarkLookAndFeel()
     setColour(juce::ProgressBar::foregroundColourId, APP_COLOR_PRIMARY);
 
     // ── TooltipWindow ────────────────────────────────────────────
-    setColour(juce::TooltipWindow::backgroundColourId, juce::Colour(0xFF232323u));
-    setColour(juce::TooltipWindow::outlineColourId, juce::Colour(0xFF3C3C3Cu));
-    setColour(juce::TooltipWindow::textColourId, juce::Colour(0xFF9B9B9Bu));
+    setColour(juce::TooltipWindow::backgroundColourId, Skin::colour(0xFF232323u));
+    setColour(juce::TooltipWindow::outlineColourId, Skin::colour(0xFF3C3C3Cu));
+    setColour(juce::TooltipWindow::textColourId, Skin::colour(0xFF9B9B9Bu));
 
     // Keep JUCE's standard tooltip renderer, but give its default text layout
     // the same Montserrat face used by the rest of the application.
@@ -205,12 +206,14 @@ void DarkLookAndFeel::drawTickBox(juce::Graphics& g, juce::Component& component,
 
     if (ticked)
     {
-        g.setColour(juce::Colour(0xFF575757u).withMultipliedAlpha(alpha));
+        g.setColour((Skin::starsClique() ? juce::Colour(0xFFA970F5u) : Skin::colour(0xFF575757u))
+                        .withMultipliedAlpha(alpha));
         g.fillRoundedRectangle(track, trackRadius);
     }
     else
     {
-        g.setColour(juce::Colour(0xFF30302Eu).withMultipliedAlpha(alpha));
+        g.setColour((Skin::starsClique() ? juce::Colour(0x26FFFFFFu) : Skin::colour(0xFF30302Eu))
+                        .withMultipliedAlpha(alpha));
         g.fillRoundedRectangle(track, trackRadius);
     }
 
@@ -220,7 +223,7 @@ void DarkLookAndFeel::drawTickBox(juce::Graphics& g, juce::Component& component,
     const float thumbX = ticked ? (trackX + trackW - thumbD - thumbPad) : (trackX + thumbPad);
     const float thumbY = trackY + thumbPad;
 
-    g.setColour((ticked ? juce::Colours::white : juce::Colour(0xFF575757u))
+    g.setColour((ticked ? juce::Colours::white : Skin::colour(0xFF575757u))
                     .withMultipliedAlpha(alpha));
     g.fillEllipse(thumbX, thumbY, thumbD, thumbD);
 }

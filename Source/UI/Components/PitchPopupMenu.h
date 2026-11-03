@@ -18,7 +18,7 @@ public:
                   juce::Colours::transparentBlack);
         setColour(juce::PopupMenu::textColourId, APP_COLOR_TEXT_PRIMARY);
         setColour(juce::PopupMenu::highlightedBackgroundColourId,
-                  juce::Colour(0xFF171717u));
+                  Skin::colour(0xFF171717u));
         setColour(juce::PopupMenu::highlightedTextColourId,
                   APP_COLOR_TEXT_PRIMARY);
     }
@@ -31,9 +31,9 @@ public:
         juce::Path shape;
         shape.addRoundedRectangle(bounds.reduced(0.5f), 9.0f);
 
-        g.setColour(juce::Colour(0xFF30302Eu));
+        g.setColour(Skin::colour(0xFF30302Eu));
         g.fillPath(shape);
-        g.setColour(juce::Colour(0xFF3E3E3Eu));
+        g.setColour(Skin::colour(0xFF3E3E3Eu));
         g.strokePath(shape, juce::PathStrokeType(1.0f));
     }
 
@@ -77,13 +77,13 @@ public:
         const auto area = getLocalBounds().toFloat();
         if (isItemHighlighted())
         {
-            g.setColour(juce::Colour(0xFF171717u));
+            g.setColour(Skin::colour(0xFF171717u));
             g.fillRoundedRectangle(area.reduced(2.0f, 1.0f), 5.0f);
         }
 
         if (isSelected)
         {
-            g.setColour(juce::Colour(0xFFEFEFEFu));
+            g.setColour(Skin::colour(0xFFEFEFEFu));
             g.fillEllipse(8.0f, area.getCentreY() - 3.5f, 7.0f, 7.0f);
         }
 

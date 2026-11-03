@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PitchPopupMenu.h"
+#include "../../Utils/UI/Skin.h"
 #include "../../Utils/Localization.h"
 #include "BinaryData.h"
 #include <array>
@@ -47,7 +48,7 @@ public:
         }
         if (isEnabled() && (over || down || hasKeyboardFocus(false)))
         {
-            g.setColour(juce::Colour(0xFF171717u));
+            g.setColour(Skin::colour(0xFF171717u));
             g.fillRoundedRectangle(getLocalBounds().toFloat().reduced(2, 1), 5);
         }
         g.setColour(APP_COLOR_TEXT_PRIMARY.withMultipliedAlpha(isEnabled() ? 1.0f : 0.4f));
@@ -75,13 +76,17 @@ public:
         const juce::String names[] = {
             TR("canvas.select_all"), TR("canvas.select"), TR("canvas.split"),
             TR("canvas.pitch_drawing"),    TR("canvas.timing"), TR("command.undo"),
-            TR("command.redo")
+            TR("command.redo"), TR("canvas.quantize_time"),
+            TR("canvas.align_to_reference"), TR("canvas.leveling"),
+            TR("canvas.invert_selection"), TR("canvas.restore_selection"),
+            TR("canvas.select_same_pitch"), TR("canvas.select_following"),
+            TR("canvas.random_deviations"), TR("canvas.sibilants")
         };
         const void* data[] = { BinaryData::selectmenu_png, BinaryData::splitmenu_png,
                                BinaryData::drawingmenu_png, BinaryData::timingmenu_png };
         const int sizes[] = { BinaryData::selectmenu_pngSize, BinaryData::splitmenu_pngSize,
                               BinaryData::drawingmenu_pngSize, BinaryData::timingmenu_pngSize };
-        for (int i = 0; i < 7; ++i)
+        for (int i = 0; i < numButtons; ++i)
         {
             buttons[i] = std::make_unique<ActionButton>(names[i]);
             if (i > 0 && i < 5)
@@ -95,8 +100,9 @@ public:
         }
         buttons[5]->setEnabled(canUndo);
         buttons[6]->setEnabled(canRedo);
-        topWidth = juce::GlyphArrangement::getStringWidthInt(
-                      AppFont::getFont(14), names[0]) + 24;
+        for (int i : {0, 7, 8, 9, 10, 11, 12, 13, 14, 15})
+            topWidth = juce::jmax(topWidth, juce::GlyphArrangement::getStringWidthInt(
+                                                AppFont::getFont(14), names[i]) + 24);
     }
 
     void getIdealSize(int& width, int& height) override
@@ -108,8 +114,12 @@ public:
     void paint(juce::Graphics& g) override
     {
         pitchPopupMenu::getLookAndFeel().drawPopupMenuBackground(g, topWidth, topHeight);
-        g.setColour(juce::Colour(0xFF3E3E3Eu));
+        g.setColour(Skin::colour(0xFF3E3E3Eu));
         g.fillRect(8, padding + 2 * rowHeight + separatorHeight / 2,
+                   topWidth - 16, 1);
+        g.fillRect(8, padding + 7 * rowHeight + separatorHeight + separatorHeight / 2,
+                   topWidth - 16, 1);
+        g.fillRect(8, padding + 11 * rowHeight + 2 * separatorHeight + separatorHeight / 2,
                    topWidth - 16, 1);
     }
 
@@ -119,6 +129,19 @@ public:
         buttons[6]->setBounds(0, padding + rowHeight, topWidth, rowHeight);
         buttons[0]->setBounds(0, padding + 2 * rowHeight + separatorHeight,
                               topWidth, rowHeight);
+        // Selection commands under Select All.
+        for (int i = 10; i < 14; ++i)
+            buttons[i]->setBounds(0, padding + (i - 7) * rowHeight + separatorHeight,
+                                  topWidth, rowHeight);
+        // The macros, below their own separator.
+        for (int i = 7; i < 10; ++i)
+            buttons[i]->setBounds(0, padding + i * rowHeight + 2 * separatorHeight,
+                                  topWidth, rowHeight);
+        buttons[14]->setBounds(0, padding + 10 * rowHeight + 2 * separatorHeight,
+                               topWidth, rowHeight);
+        // Sibilants, below their own separator.
+        buttons[15]->setBounds(0, padding + 11 * rowHeight + 3 * separatorHeight,
+                               topWidth, rowHeight);
         for (int i = 1; i < 5; ++i)
             buttons[i]->setBounds((i - 1) * (buttonWidth + 1), topHeight + 1,
                                   buttonWidth, buttonHeight);
@@ -126,10 +149,11 @@ public:
 
 private:
     static constexpr int padding = 4, rowHeight = 26, separatorHeight = 8;
-    static constexpr int topHeight = 2 * padding + 3 * rowHeight + separatorHeight;
+    static constexpr int numButtons = 16;
+    static constexpr int topHeight = 2 * padding + 12 * rowHeight + 3 * separatorHeight;
     static constexpr int buttonWidth = 22, buttonHeight = 21;
     int topWidth = 0;
     std::shared_ptr<int> choice;
-    std::array<std::unique_ptr<ActionButton>, 7> buttons;
+    std::array<std::unique_ptr<ActionButton>, numButtons> buttons;
 };
 }

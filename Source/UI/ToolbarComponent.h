@@ -64,6 +64,7 @@ public:
 
     void paint(juce::Graphics &g) override;
     void resized() override;
+    void lookAndFeelChanged() override;
     void mouseDown(const juce::MouseEvent &e) override;
     void mouseDrag(const juce::MouseEvent &e) override;
     void mouseDoubleClick(const juce::MouseEvent &e) override;
@@ -121,6 +122,18 @@ public:
     std::function<void()> onCorrectPitchCenter;
     std::function<void(int)> onScaleRootChanged;
     std::function<void(ScaleMode)> onScaleModeChanged;
+    std::function<void()> onEditCustomScale;
+    // The PitchNet logo opens a menu: change skin, credits.
+    std::function<void()> onSkinChanged;
+    std::function<void()> onCreditsRequested;
+    // Logo menu: export the shown tracks' notes as a MIDI file.
+    std::function<void()> onExportMidi;
+    std::function<void()> onEditReferencePitch;
+    // The key is shared by every track: no per-track override, and the label
+    // follows changes made in other windows.
+    void setSharedKeyScope(bool shared) { scaleSelectionButton.setProjectKeyScope(shared); }
+    void refreshScaleLabel() { scaleSelectionButton.refreshFromProject(); }
+    juce::Rectangle<int> getScaleButtonBounds() const { return scaleSelectionButton.getBounds(); }
     std::function<void(std::optional<int>)> onScaleRootPreviewChanged;
     std::function<void(std::optional<ScaleMode>)> onScaleModePreviewChanged;
 
@@ -130,7 +143,7 @@ public:
     void setTrackViewAvailable(bool available);
     void setTrackViewMode(bool track);
     std::function<void(bool)> onTrackViewModeChanged; // true = Track mode
-    // Note: Removed onRender - Melodyne-style: edits automatically trigger real-time processing
+    // Note: Removed onRender - edits automatically trigger real-time processing
 
 private:
     void updateTimeDisplay();
@@ -141,11 +154,15 @@ private:
     Button stopButton;
     ToggleButton loopButton;
     juce::Image logoImage;
+    juce::Rectangle<int> logoBounds() const;
+    juce::Rectangle<int> skinPillBounds() const;
+    void layoutStarsClique();
+    void showLogoMenu();
 
     bool pluginMode = false;
     bool hostTransportAvailable = true;
     bool transportEnabled = false;
-    // Note: Removed renderButton - Melodyne-style: automatic real-time processing
+    // Note: Removed renderButton - automatic real-time processing
 
     // Edit mode buttons
     ToggleButton selectModeButton;

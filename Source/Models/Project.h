@@ -2,6 +2,7 @@
 
 #include "../JuceHeader.h"
 #include "Note.h"
+#include <array>
 #include <vector>
 #include <memory>
 #include <utility>
@@ -53,6 +54,9 @@ struct AudioData
     std::vector<bool> voicedMask;                        // [T] uv mask (true = voiced, F0-based)
     std::vector<bool> vadMask;                           // [T] energy-based VAD (true = has audio energy, captures consonants)
     std::vector<std::pair<int, int>> segmentChunkRanges; // [N] GAME slicer chunks in frame range [start, end)
+    // Timing alignment fingerprints (TimingAligner), made from the mel for
+    // the light copies other tracks read; empty in full projects.
+    std::vector<float> alignFeatures;
     std::vector<SegmentDebugChunk> segmentDebugChunks;   // raw GAME outputs for debug visualization
 
     float getDuration() const
@@ -100,7 +104,28 @@ enum class ScaleMode : int
     Mixolydian,
     Phrygian,
     PhrygianDominant,
-    WholeTone
+    WholeTone,
+    // The user's own scale (CustomScale in the shared MacroParameters):
+    // any set of notes, each detuned by its own cents.
+    Custom = 100
+};
+
+/** A scale the user made: which of the 12 notes it uses (C = 0 ... B = 11,
+    absolute, not relative to a root) and how many cents each one is tuned
+    away from equal temperament. Notes are tuned to these pitches. */
+struct CustomScale
+{
+    juce::String name;
+    std::array<bool, 12> used{{true, false, true, false, true, true, false, true, false, true, false, true}};
+    std::array<float, 12> cents{};
+};
+
+/** A key change on the host timeline: from `seconds` on, this key applies. */
+struct KeyMarker
+{
+    double seconds = 0.0;
+    int root = 0;
+    ScaleMode mode = ScaleMode::Major;
 };
 
 enum class DragSnapMode : int
@@ -146,7 +171,18 @@ struct MacroParameters
     double timelineTempoBpm = 120.0;
     TimelineGridDivision timelineGridDivision = TimelineGridDivision::Quarter;
     bool timelineSnapCycle = false;
+    CustomScale customScale;
+    std::vector<KeyMarker> keyMarkers; // sorted by time
 };
+
+/** One set of these for the whole plug-in process: every track shares the
+    key, A4, custom scale and key changes, and changing them in one window
+    changes them for all (multitrack editing). */
+inline std::shared_ptr<MacroParameters> &sharedMacroParameters()
+{
+    static auto parameters = std::make_shared<MacroParameters>();
+    return parameters;
+}
 
 /**
  * Project data container.
@@ -251,6 +287,26 @@ public:
     void setLoopEnabled(bool enabled);
     void clearLoopRange();
 
+    // Replace Ranges (Transfer without ARA): where this track's
+    // audio replaces the DAW track, in project seconds. Empty: everywhere.
+    const std::vector<std::pair<double, double>> &getReplaceRanges() const { return replaceRanges; }
+
+    // Lead and doubles in ARA hosts (REAPER): the track's group, kept in
+    // each of its regions' projects so it is saved with the host project.
+    // Hosts without ARA keep it in the plug-in state instead.
+    struct DoubleGroup
+    {
+        juce::String id;
+        int role = 0; // 1 lead, 2 double
+        bool unisonOn = false;
+        float unisonStrength = 1.0f;
+        bool timingOn = false;
+        float timingStrength = 1.0f;
+    };
+    const DoubleGroup &getDoubleGroup() const { return doubleGroup; }
+    void setDoubleGroup(DoubleGroup group) { doubleGroup = std::move(group); }
+    void setReplaceRanges(std::vector<std::pair<double, double>> ranges) { replaceRanges = std::move(ranges); }
+
     // Piano-roll scale visualization
     ScaleMode getScaleMode() const {
         const auto mode = macroParameters->scaleMode;
@@ -302,6 +358,12 @@ public:
     }
     void setMacroParameters(std::shared_ptr<MacroParameters> parameters);
 
+    /** A copy for other windows to read: notes, pitch curves and settings,
+        without the mel spectrogram, the original audio or debug data (and,
+        unless `keepWaveform`, without the rendered audio either). Copying
+        only this is what keeps sharing a track cheap. */
+    std::shared_ptr<Project> makeLightCopy(bool keepWaveform) const;
+
 private:
     juce::String name = "Untitled";
     juce::File filePath;
@@ -323,6 +385,8 @@ private:
     bool modified = false;
 
     LoopRange loopRange;
+    std::vector<std::pair<double, double>> replaceRanges;
+    DoubleGroup doubleGroup;
     bool useProjectKey = true;
     int detectedKeyRoot = 0;
     ScaleMode detectedKeyMode = ScaleMode::Major;

@@ -62,6 +62,10 @@ public:
   float timeToX(double time) const;
   double xToTime(float x) const;
   double snapTimeToTimelineGrid(double timeSeconds) const;
+  /** Grid step for moving notes in time (0: no grid, e.g. a seconds ruler). */
+  double noteTimeGridSeconds() const;
+  bool toggleMuteSelectedNotes();
+  PianoRollComponent &component() { return componentRef; }
   bool isCanvasPoint(const juce::MouseEvent &e) const;
 
   Note *findNoteAt(float x, float y);
@@ -72,5 +76,5 @@ public:
   void updatePitchDrawingConfirmation();
 
 private:
-  PianoRollComponent &component;
+  PianoRollComponent &componentRef;
 };

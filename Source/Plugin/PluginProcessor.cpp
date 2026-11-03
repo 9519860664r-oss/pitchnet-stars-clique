@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "UnisonCoordinator.h"
 #include "../Utils/AudioResampler.h"
 #include "../Audio/EditorController.h"
 #include "../Undo/PitchUndoManager.h"
@@ -7,6 +8,11 @@
 #include "../UI/IMainView.h"
 #include "../Utils/Localization.h"
 #include "../Utils/Constants.h"
+#include "../Utils/TimelineFrameSnap.h"
+#include "InstanceRegistry.h"
+#include "../Models/ProjectTimelineOffset.h"
+#include "../Utils/ReplaceRanges.h"
+#include "../Utils/PerfTrace.h"
 #include "../Utils/MelSpectrogram.h"
 #include "../Utils/OnnxRuntime.h"
 #include "../Utils/OnnxRuntimeLoader.h"
@@ -251,8 +257,101 @@ PitchNetAudioProcessor::PitchNetAudioProcessor()
   dryWetParamValue = apvts.getRawParameterValue(PARAM_DRY_WET);
   pitchOffsetParamValue = apvts.getRawParameterValue(PARAM_PITCH_OFFSET);
   formantShiftParamValue = apvts.getRawParameterValue(PARAM_FORMANT_SHIFT);
-  araAnalysisController = std::make_unique<EditorController>(false);
+  araAnalysisController = makeRenderController();
   undoManager = std::make_unique<PitchUndoManager>(100);
+  instanceRegistryId = InstanceRegistry::get().add(this);
+  UnisonCoordinator::retain();
+}
+
+void PitchNetAudioProcessor::setDoubleGroup(const juce::String &groupId, int role) {
+  // Kept in the parameter state, so it is saved with the host project.
+  apvts.state.setProperty("doubleGroup", role == InstanceRegistry::None ? juce::String() : groupId,
+                          nullptr);
+  apvts.state.setProperty("doubleRole", groupId.isEmpty() ? 0 : role, nullptr);
+  if (role != InstanceRegistry::Lead)
+  {
+    apvts.state.setProperty("unisonOn", false, nullptr);
+    apvts.state.setProperty("timingOn", false, nullptr);
+  }
+  InstanceRegistry::get().setGroup(instanceRegistryId, groupId, role);
+  if (role != InstanceRegistry::Lead)
+  {
+    InstanceRegistry::get().setUnison(instanceRegistryId, false, 1.0f);
+    InstanceRegistry::get().setTiming(instanceRegistryId, false, 1.0f);
+  }
+  UnisonCoordinator::poke();
+}
+
+std::unique_ptr<EditorController> PitchNetAudioProcessor::makeRenderController() {
+  // A render backend for a track whose window is closed. Its vocoder keeps
+  // its own default device (the GPU where there is one): putting all three
+  // tracks of a group on the GPU at once froze the UI for seconds.
+  auto controller = std::make_unique<EditorController>(false);
+  controller->preloadVocoderAsync(); // off the window's thread, before the first render
+  return controller;
+}
+
+void PitchNetAudioProcessor::editAndRenderHeadless(
+    const std::function<bool(Project &)> &edit) {
+  if (mainComponent != nullptr || araAnalysisProjectSnapshot == nullptr)
+    return;
+  if (!araAnalysisController)
+    araAnalysisController = makeRenderController();
+  // The snapshot is what this track plays; the render backend takes it over
+  // (one copy, the same one requestPluginProjectRender would make).
+  auto *backend = araAnalysisController->getProject();
+  if (backend == nullptr) {
+    araAnalysisController->setProject(std::make_unique<Project>(*araAnalysisProjectSnapshot));
+    backend = araAnalysisController->getProject();
+  } else if (!headlessBackendCurrent) {
+    PerfTrace::Scope perfScope("headless backend copy #" + juce::String((juce::int64) instanceRegistryId));
+    *backend = *araAnalysisProjectSnapshot;
+  }
+  headlessBackendCurrent = backend != nullptr;
+  if (backend != nullptr && edit(*backend))
+    requestPluginProjectRender(*backend);
+}
+
+void PitchNetAudioProcessor::setUnison(bool on, float strength) {
+  apvts.state.setProperty("unisonOn", on, nullptr);
+  apvts.state.setProperty("unisonStrength", strength, nullptr);
+  InstanceRegistry::get().setUnison(instanceRegistryId, on, strength);
+  UnisonCoordinator::poke();
+}
+
+void PitchNetAudioProcessor::setTiming(bool on, float strength) {
+  apvts.state.setProperty("timingOn", on, nullptr);
+  apvts.state.setProperty("timingStrength", strength, nullptr);
+  InstanceRegistry::get().setTiming(instanceRegistryId, on, strength);
+  UnisonCoordinator::poke();
+}
+
+void PitchNetAudioProcessor::restoreDoubleGroupFromState() {
+  const auto &state = apvts.state;
+  InstanceRegistry::get().setGroup(instanceRegistryId,
+                                   state.getProperty("doubleGroup", juce::String()).toString(),
+                                   static_cast<int>(state.getProperty("doubleRole", 0)));
+  InstanceRegistry::get().setUnison(instanceRegistryId,
+                                    static_cast<bool>(state.getProperty("unisonOn", false)),
+                                    static_cast<float>(state.getProperty("unisonStrength", 1.0)));
+  InstanceRegistry::get().setTiming(instanceRegistryId,
+                                    static_cast<bool>(state.getProperty("timingOn", false)),
+                                    static_cast<float>(state.getProperty("timingStrength", 1.0)));
+}
+
+void PitchNetAudioProcessor::updateTrackProperties(
+    const TrackProperties &properties) {
+  // The host's track / mixer-channel name and colour, for the track list
+  // other instances show. May arrive on any thread; the registry locks.
+  const juce::String name = properties.name.value_or(juce::String());
+  // A fully transparent value means "no colour" (some hosts send 0).
+  const bool hasColour = properties.colourARGB.has_value() &&
+                         juce::Colour(*properties.colourARGB).getAlpha() > 0;
+  InstanceRegistry::get().setTrackInfo(
+      instanceRegistryId, name,
+      hasColour ? juce::Colour(*properties.colourARGB).withAlpha(1.0f)
+                : juce::Colour(),
+      hasColour);
 }
 
 // Destructor is defined at the bottom of this file, after ARADocumentController.h
@@ -668,8 +767,7 @@ void PitchNetAudioProcessor::processNonARAMode(
 
     if (captureController->shouldFinalize()) {
       NonAraCaptureController::FinalizeResult result;
-      if (captureController->finalizeCapture(hostSampleRate, result) &&
-          mainComponent) {
+      if (captureController->finalizeCapture(hostSampleRate, result)) {
         auto controller = captureController;
         juce::MessageManager::callAsync([this, controller,
                                          samples = result.numSamples,
@@ -707,6 +805,9 @@ void PitchNetAudioProcessor::processNonARAMode(
     const float dryWet = dryWetParamValue->load();
     if (dryWet < 99.9f)
       dryBuffer.makeCopyOf(buffer);
+    juce::AudioBuffer<float> trackBuffer;
+    if (std::atomic_load(&replaceMask))
+      trackBuffer.makeCopyOf(buffer);
 
     // Real-time pitch correction mode
     juce::AudioBuffer<float> outputBuffer(numChannels, numSamples);
@@ -716,6 +817,7 @@ void PitchNetAudioProcessor::processNonARAMode(
 
       // Apply dry/wet mix and output gain
       applyOutputProcessing(buffer, dryBuffer);
+      applyReplaceMask(buffer, trackBuffer, posInfo);
     }
     return;
   }
@@ -772,8 +874,7 @@ void PitchNetAudioProcessor::processNonARAMode(
 
   if (captureController->shouldFinalize()) {
     NonAraCaptureController::FinalizeResult result;
-    if (captureController->finalizeCapture(hostSampleRate, result) &&
-        mainComponent) {
+    if (captureController->finalizeCapture(hostSampleRate, result)) {
       auto controller = captureController;
       juce::MessageManager::callAsync([this, controller,
                                        samples = result.numSamples,
@@ -816,8 +917,67 @@ void PitchNetAudioProcessor::startCapture() {
 }
 
 void PitchNetAudioProcessor::stopCapture() {
-  captureController->stop();
+  // Transfer off during a take is a punch out - keep the take.
+  // Off while still waiting for Play just disarms.
+  if (captureController->getState() == NonAraCaptureController::State::Capturing)
+    captureController->requestPunchOut();
+  else
+    captureController->stop();
   handleAsyncUpdate();
+}
+
+void PitchNetAudioProcessor::setReplaceRanges(
+    const std::vector<std::pair<double, double>> &ranges) {
+  std::shared_ptr<const std::vector<std::pair<double, double>>> mask;
+  if (!ranges.empty())
+    mask = std::make_shared<const std::vector<std::pair<double, double>>>(
+        ReplaceRanges::normalize(ranges));
+  std::atomic_store(&replaceMask, std::move(mask));
+  if (araAnalysisProjectSnapshot)
+    araAnalysisProjectSnapshot->setReplaceRanges(ranges);
+  // The headless render backend keeps the same ranges, so it can go on
+  // being edited in place (its renders become the next snapshot).
+  if (headlessBackendCurrent && araAnalysisController != nullptr)
+    if (auto *backend = araAnalysisController->getProject())
+      backend->setReplaceRanges(ranges);
+}
+
+void PitchNetAudioProcessor::applyReplaceMask(
+    juce::AudioBuffer<float> &buffer, const juce::AudioBuffer<float> &dry,
+    const juce::AudioPlayHead::PositionInfo &pos) const {
+  const auto mask = std::atomic_load(&replaceMask);
+  if (!mask || mask->empty() || dry.getNumSamples() < buffer.getNumSamples())
+    return;
+  const double sr = hostSampleRate > 0.0 ? hostSampleRate : 44100.0;
+  double blockStart = 0.0;
+  if (auto samples = pos.getTimeInSamples())
+    blockStart = static_cast<double>(*samples) / sr;
+  else if (auto seconds = pos.getTimeInSeconds())
+    blockStart = *seconds;
+  else
+    return;
+  // Short crossfades at range edges, so switching never clicks.
+  const double fade = 0.005;
+  const int n = buffer.getNumSamples();
+  const int channels = std::min(buffer.getNumChannels(), dry.getNumChannels());
+  for (int i = 0; i < n; ++i) {
+    const double t = blockStart + i / sr;
+    double wet = 0.0;
+    for (const auto &r : *mask) {
+      if (t < r.first - fade || t >= r.second + fade)
+        continue;
+      const double in = juce::jlimit(0.0, 1.0, (t - (r.first - fade)) / fade);
+      const double out = juce::jlimit(0.0, 1.0, ((r.second + fade) - t) / fade);
+      wet = std::max(wet, std::min(in, out));
+    }
+    if (wet >= 1.0)
+      continue;
+    const float w = static_cast<float>(wet);
+    for (int ch = 0; ch < channels; ++ch) {
+      auto *out = buffer.getWritePointer(ch);
+      out[i] = out[i] * w + dry.getSample(ch, i) * (1.0f - w);
+    }
+  }
 }
 
 void PitchNetAudioProcessor::bindRealtimeProcessorHeadless() {
@@ -1023,6 +1183,17 @@ bool PitchNetAudioProcessor::processPluginPreview(
   for (int ch = 0; ch < numChannels; ++ch)
     buffer.copyFrom(ch, 0, rendered, ch, 0, toCopy);
 
+  // The other tracks the Editing Mix Fader lets in.
+  if (auto bed = std::atomic_load(&previewMixBed)) {
+    const int bedChannels = bed->getNumChannels();
+    const int available = static_cast<int>(std::max<juce::int64>(
+        0, std::min<juce::int64>(toCopy, bed->getNumSamples() - pluginPreviewCursor)));
+    if (bedChannels > 0 && available > 0)
+      for (int ch = 0; ch < numChannels; ++ch)
+        buffer.addFrom(ch, 0, *bed, std::min(ch, bedChannels - 1),
+                       static_cast<int>(pluginPreviewCursor), available);
+  }
+
   pluginPreviewCursor += toCopy;
   return true;
 }
@@ -1099,10 +1270,28 @@ void PitchNetAudioProcessor::dispatchLiveCaptureUpdate() {
       });
 }
 void PitchNetAudioProcessor::requestCapturedAudioAnalysis(
-    const juce::AudioBuffer<float> &buffer, double sampleRate,
-    double timelineOffsetSeconds) {
-  if (buffer.getNumSamples() <= 0 || sampleRate <= 0.0)
+    const juce::AudioBuffer<float> &capturedBuffer, double sampleRate,
+    double requestedOffsetSeconds) {
+  if (capturedBuffer.getNumSamples() <= 0 || sampleRate <= 0.0)
     return;
+
+  // Start the capture on an analysis frame (see TimelineFrameSnap); an
+  // offset between frames made resynthesised audio play up to ~5.8 ms off.
+  const auto snap =
+      TimelineFrameSnap::snapToFrameGrid(requestedOffsetSeconds, sampleRate);
+  const double timelineOffsetSeconds = snap.offsetSeconds;
+  const int leadSamples = snap.leadSamples;
+  juce::AudioBuffer<float> buffer;
+  if (leadSamples > 0) {
+    buffer.setSize(capturedBuffer.getNumChannels(),
+                   capturedBuffer.getNumSamples() + leadSamples);
+    buffer.clear();
+    for (int ch = 0; ch < capturedBuffer.getNumChannels(); ++ch)
+      buffer.copyFrom(ch, leadSamples, capturedBuffer, ch, 0,
+                      capturedBuffer.getNumSamples());
+  } else {
+    buffer.makeCopyOf(capturedBuffer);
+  }
 
   // Analysis is asynchronous. Preserve the completed regions now rather than
   // trying to recover them from mutable UI/controller state in the callback.
@@ -1120,13 +1309,14 @@ void PitchNetAudioProcessor::requestCapturedAudioAnalysis(
   undoManager->clear();
 
   if (!araAnalysisController)
-    araAnalysisController = std::make_unique<EditorController>(false);
+    araAnalysisController = makeRenderController();
 
   araAnalysisSourceKey = 0;
   araAnalysisLoading = true;
   araAnalysisReady = false;
   araAnalysisTimelineOffsetSeconds = std::max(0.0, timelineOffsetSeconds);
   araAnalysisProjectSnapshot.reset();
+  headlessBackendCurrent = false;
   invalidateAraAnalysisProjectJson();
 
   if (mainComponent) {
@@ -1146,8 +1336,8 @@ void PitchNetAudioProcessor::requestCapturedAudioAnalysis(
           }
         });
       },
-      [this, timelineOffsetSeconds,
-       previousCapturedProject](const juce::AudioBuffer<float> &) {
+      [this, timelineOffsetSeconds, previousCapturedProject,
+       takeSeconds = buffer.getNumSamples() / sampleRate](const juce::AudioBuffer<float> &) {
         if (!araAnalysisController)
           return;
 
@@ -1285,8 +1475,26 @@ void PitchNetAudioProcessor::requestCapturedAudioAnalysis(
           completedProject = std::make_unique<Project>(*analyzedProject);
         }
 
+        // Replace Ranges: what was transferred so far, plus this take.
+        {
+          auto ranges = hasPreviousCapture
+              ? previousCapturedProject->getReplaceRanges()
+              : std::vector<std::pair<double, double>>{};
+          if (hasPreviousCapture && ranges.empty()) {
+            // Before ranges existed the whole earlier transfer replaced.
+            const auto &prev = previousCapturedProject->getAudioData();
+            if (prev.sampleRate > 0)
+              ranges.emplace_back(std::max(0.0, prev.timelineOffsetSeconds),
+                                  prev.waveform.getNumSamples() /
+                                      static_cast<double>(prev.sampleRate));
+          }
+          completedProject->setReplaceRanges(ReplaceRanges::add(
+              ranges, timelineOffsetSeconds, timelineOffsetSeconds + takeSeconds));
+        }
+
         araAnalysisProjectSnapshot =
             std::make_unique<Project>(*completedProject);
+        headlessBackendCurrent = false;
         invalidateAraAnalysisProjectJson();
         araAnalysisLoading = false;
         araAnalysisReady = araAnalysisProjectSnapshot != nullptr;
@@ -1303,6 +1511,7 @@ void PitchNetAudioProcessor::requestCapturedAudioAnalysis(
           if (auto *positionedProject = mainComponent->getProject()) {
             araAnalysisProjectSnapshot =
                 std::make_unique<Project>(*positionedProject);
+            headlessBackendCurrent = false;
             invalidateAraAnalysisProjectJson();
           }
           if (araAnalysisProjectSnapshot)
@@ -1312,9 +1521,16 @@ void PitchNetAudioProcessor::requestCapturedAudioAnalysis(
         } else if (mainComponent) {
           mainComponent->hideAnalysisProgress();
         } else if (araAnalysisProjectSnapshot) {
-          // Capture analysis may outlive the editor that started it. Keep
-          // headless playback current without doing any project-sized work in
-          // processBlock().
+          // No window: a track transferred from another instance's window
+          // ("transfer all"), or analysis that outlived its editor.
+          // A first capture is local to zero; put it where it played on the
+          // host timeline, as the editor does when it is open.
+          if (!hasPreviousCapture)
+            ProjectTimelineOffset::apply(*araAnalysisProjectSnapshot,
+                                         araAnalysisTimelineOffsetSeconds);
+          headlessBackendCurrent = false;
+          // Keep headless playback current without doing any project-sized
+          // work in processBlock().
           publishPersistentProjectSnapshot(*araAnalysisProjectSnapshot);
           bindRealtimeProcessorHeadless();
         }
@@ -1346,9 +1562,9 @@ void PitchNetAudioProcessor::requestPluginProjectRender(
 
   if (renderActiveAraRegion) {
     if (!regionCanvasController)
-      regionCanvasController = std::make_unique<EditorController>(false);
+      regionCanvasController = makeRenderController();
   } else if (!araAnalysisController) {
-    araAnalysisController = std::make_unique<EditorController>(false);
+    araAnalysisController = makeRenderController();
   }
 
   auto *controller = renderActiveAraRegion ? regionCanvasController.get()
@@ -1358,22 +1574,36 @@ void PitchNetAudioProcessor::requestPluginProjectRender(
   if (target != nullptr) {
     targetKey = pitchnetModificationKey(*target);
     auto& state = modificationRenders[targetKey];
-    if (!state.controller) state.controller = std::make_unique<EditorController>(false);
+    if (!state.controller) state.controller = makeRenderController();
     controller = state.controller.get();
   }
 #endif
   if (controller == nullptr)
     return;
 
+  const double perfRenderStart = PerfTrace::now();
+  PerfTrace::mark("render request #" + juce::String((juce::int64) instanceRegistryId) +
+                  " engine " + juce::String(static_cast<int>(controller->getSynthesisEngineType())));
+  // Other tracks (doubles in unison) can follow these notes now, while
+  // this one renders, instead of after.
+  bool sharesThroughRegistry = target == nullptr && !renderActiveAraRegion;
+#if JucePlugin_Enable_ARA
+  sharesThroughRegistry = sharesThroughRegistry && araDocumentController == nullptr;
+#endif
+  if (sharesThroughRegistry)
+    InstanceRegistry::get().publishNotes(instanceRegistryId, projectToRender);
   auto *backendProject = controller->getProject();
-  if (!backendProject)
   {
-    controller->setProject(std::make_unique<Project>(projectToRender));
-    backendProject = controller->getProject();
-  }
-  else if (backendProject != &projectToRender)
-  {
-    *backendProject = projectToRender;
+    PerfTrace::Scope copyScope("render copy #" + juce::String((juce::int64) instanceRegistryId));
+    if (!backendProject)
+    {
+      controller->setProject(std::make_unique<Project>(projectToRender));
+      backendProject = controller->getProject();
+    }
+    else if (backendProject != &projectToRender)
+    {
+      *backendProject = projectToRender;
+    }
   }
 
   juce::Component::SafePointer<juce::Component> safeMain(
@@ -1415,7 +1645,10 @@ void PitchNetAudioProcessor::requestPluginProjectRender(
       [this, controller, renderActiveAraRegion, renderRegionKey, renderRegionRevision,
        renderModification, renderStartSampleInModification,
        renderRegionStartSeconds, renderRegionEndSeconds,
-       renderChangedSampleRanges, target](bool success) {
+       renderChangedSampleRanges, target, perfRenderStart](bool success) {
+        PerfTrace::mark("render done #" + juce::String((juce::int64) instanceRegistryId) +
+                        " after " + juce::String(PerfTrace::now() - perfRenderStart, 1) + " ms");
+        PerfTrace::Scope doneScope("render finish #" + juce::String((juce::int64) instanceRegistryId));
         if (renderActiveAraRegion) {
           const auto current = araRegions.find(renderRegionKey);
           if (current == araRegions.end() ||
@@ -1522,6 +1755,10 @@ void PitchNetAudioProcessor::requestPluginProjectRender(
                 araAnalysisTimelineOffsetSeconds;
             araAnalysisProjectSnapshot =
                 std::make_unique<Project>(*renderedProject);
+            // The snapshot is now a copy of the backend that rendered it.
+            headlessBackendCurrent =
+                araAnalysisController != nullptr &&
+                renderedProject == araAnalysisController->getProject();
             invalidateAraAnalysisProjectJson();
             araAnalysisReady = true;
             publishPersistentProjectSnapshot(*renderedProject);
@@ -1538,6 +1775,7 @@ void PitchNetAudioProcessor::requestPluginProjectRender(
         juce::MessageManager::callAsync(
             [this, renderSafeMain, success, renderActiveAraRegion,
              renderRegionStartSeconds]() {
+              PerfTrace::Scope perfScope("after render #" + juce::String((juce::int64) instanceRegistryId));
               if (auto *view =
                       dynamic_cast<IMainView *>(renderSafeMain.getComponent())) {
                 if (success) {
@@ -1568,6 +1806,7 @@ void PitchNetAudioProcessor::requestPluginProjectRender(
 
 void PitchNetAudioProcessor::updateProjectStateFromEditor(
     const Project &project) {
+  PerfTrace::Scope perfScope("state from editor #" + juce::String((juce::int64) instanceRegistryId));
   ++araCanvasEditSerial;
   std::unique_ptr<Project> araRegionScopedProject;
 #if JucePlugin_Enable_ARA
@@ -1589,6 +1828,7 @@ void PitchNetAudioProcessor::updateProjectStateFromEditor(
       araRegionScopedProject != nullptr ? *araRegionScopedProject : project;
 
   araAnalysisProjectSnapshot = std::make_unique<Project>(stateProject);
+  headlessBackendCurrent = false;
   invalidateAraAnalysisProjectJson();
   araAnalysisReady =
       stateProject.getAudioData().waveform.getNumSamples() > 0 &&
@@ -1903,13 +2143,14 @@ bool PitchNetAudioProcessor::restoreProjectJsonToProcessorState(
   // snapshot on the next read.
   setAraAnalysisProjectJson(projectJson);
   araAnalysisProjectSnapshot = std::make_unique<Project>(*restoredProject);
+  headlessBackendCurrent = false;
   araAnalysisLoading = false;
   araAnalysisReady =
       restoredProject->getAudioData().waveform.getNumSamples() > 0 &&
       !restoredProject->getAudioData().f0.empty();
 
   if (!araAnalysisController)
-    araAnalysisController = std::make_unique<EditorController>(false);
+    araAnalysisController = makeRenderController();
   araAnalysisController->setProject(std::move(restoredProject));
   if (araAnalysisProjectSnapshot)
     publishPersistentProjectSnapshot(*araAnalysisProjectSnapshot);
@@ -1930,6 +2171,7 @@ bool PitchNetAudioProcessor::restorePersistentProjectState(
         restoredProject->getAudioData().timelineOffsetSeconds;
     invalidateAraAnalysisProjectJson();
     araAnalysisProjectSnapshot = std::make_unique<Project>(*restoredProject);
+    headlessBackendCurrent = false;
     araAnalysisLoading = false;
     araAnalysisReady =
         restoredProject->getAudioData().waveform.getNumSamples() > 0 &&
@@ -1938,7 +2180,7 @@ bool PitchNetAudioProcessor::restorePersistentProjectState(
     cachedFormantShift = restoredProject->getFormantShift();
 
     if (!araAnalysisController)
-      araAnalysisController = std::make_unique<EditorController>(false);
+      araAnalysisController = makeRenderController();
     araAnalysisController->setProject(
         std::make_unique<Project>(*restoredProject));
     publishPersistentProjectSnapshot(*restoredProject);
@@ -1972,6 +2214,7 @@ bool PitchNetAudioProcessor::restorePersistentProjectState(
       cachedPitchOffset = project->getGlobalPitchOffset();
       cachedFormantShift = project->getFormantShift();
       araAnalysisProjectSnapshot = std::make_unique<Project>(*project);
+      headlessBackendCurrent = false;
       invalidateAraAnalysisProjectJson();
       publishPersistentProjectSnapshot(*project);
     }
@@ -2021,7 +2264,7 @@ void PitchNetAudioProcessor::setMainComponent(IMainView *mc) {
   mainComponent = mc;
   if (mc) {
     if (!araAnalysisController)
-      araAnalysisController = std::make_unique<EditorController>(false);
+      araAnalysisController = makeRenderController();
     mc->bindBackendController(araAnalysisController.get());
     mc->bindUndoManager(undoManager.get());
     mc->bindRealtimeProcessor(realtimeProcessor);
@@ -2087,6 +2330,7 @@ void PitchNetAudioProcessor::setMainComponent(IMainView *mc) {
                                        ->convertTo0to1(
                                            project->getFormantShift()));
         araAnalysisProjectSnapshot = std::make_unique<Project>(*project);
+        headlessBackendCurrent = false;
         invalidateAraAnalysisProjectJson();
         araAnalysisReady =
             project->getAudioData().waveform.getNumSamples() > 0 &&
@@ -2222,8 +2466,10 @@ void PitchNetAudioProcessor::setStateInformation(const void *data,
         auto xml = juce::parseXML(parametersXml);
         if (xml) {
           auto tree = juce::ValueTree::fromXml(*xml);
-          if (tree.isValid())
+          if (tree.isValid()) {
             apvts.replaceState(tree);
+            restoreDoubleGroupFromState();
+          }
         }
       }
 
@@ -2749,7 +2995,7 @@ void PitchNetAudioProcessor::analyzeAraRegionForCanvas(
   // modification so Cubase can archive it using the same object-level model as
   // JUCE's ARAPluginDemo/VocalNet.
   if (!regionCanvasController)
-    regionCanvasController = std::make_unique<EditorController>(false);
+    regionCanvasController = makeRenderController();
 
   const bool backgroundAnalysis = regionKey != activeRegionKey;
   const auto analysisGeneration =
@@ -3370,6 +3616,10 @@ void PitchNetAudioProcessor::publishPersistentProjectSnapshot(
     const Project &project) {
   if (araDocumentController)
     araDocumentController->setDocumentProjectSnapshot(project);
+  else {
+    InstanceRegistry::get().publish(instanceRegistryId, project);
+    setReplaceRanges(project.getReplaceRanges());
+  }
 }
 
 void PitchNetAudioProcessor::ensureHeadlessAraBinding() {
@@ -3407,6 +3657,9 @@ void PitchNetAudioProcessor::didBindToARA() noexcept {
 }
 
 PitchNetAudioProcessor::~PitchNetAudioProcessor() {
+  pitchNetEditorsForgetProcessor(this);
+  InstanceRegistry::get().remove(instanceRegistryId);
+  UnisonCoordinator::release();
   // Cancel every backend before member destruction starts joining workers.
   for (auto& entry : modificationRenders)
     if (entry.second.controller) entry.second.controller->requestShutdown();
@@ -3429,9 +3682,15 @@ PitchNetAudioProcessor::~PitchNetAudioProcessor() {
 }
 #else
 void PitchNetAudioProcessor::publishPersistentProjectSnapshot(
-    const Project &) {}
+    const Project &project) {
+  InstanceRegistry::get().publish(instanceRegistryId, project);
+  setReplaceRanges(project.getReplaceRanges());
+}
 
 PitchNetAudioProcessor::~PitchNetAudioProcessor() {
+  pitchNetEditorsForgetProcessor(this);
+  InstanceRegistry::get().remove(instanceRegistryId);
+  UnisonCoordinator::release();
   for (auto& entry : modificationRenders)
     if (entry.second.controller) entry.second.controller->requestShutdown();
   modificationRenders.clear();

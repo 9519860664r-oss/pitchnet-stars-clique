@@ -8,7 +8,7 @@ if(CMAKE_HOST_APPLE AND NOT CMAKE_OSX_ARCHITECTURES)
         "macOS target architectures" FORCE)
 endif()
 
-project(PitchNet VERSION 0.7.2)
+project(PitchNet VERSION 1.0.0) # Stars Clique edition 1.0 (based on PitchNet 0.7.2)
 
 # Fail fast on a 32-bit toolchain. Every ONNX Runtime package selected below is
 # x64/arm64 only, so a 32-bit build cannot link - it dies much later with a wall
@@ -243,9 +243,11 @@ if(PITCHNET_DEV_BUILD)
         "(product '${PITCHNET_PRODUCT_NAME}', plugin code ${PITCHNET_PLUGIN_CODE}, "
         "bundle id ${PITCHNET_BUNDLE_ID})")
 else()
-    set(PITCHNET_PRODUCT_NAME "PitchNet")
-    set(PITCHNET_BUNDLE_ID "com.sessionloops.pitchnet")
-    set(PITCHNET_PLUGIN_CODE PTE1)
+    # Stars Clique fork: its own name and plug-in code, so hosts list it beside
+    # an installed upstream PitchNet instead of treating the two as one plug-in.
+    set(PITCHNET_PRODUCT_NAME "PitchNet (Stars Clique ver)")
+    set(PITCHNET_BUNDLE_ID "com.starsclique.pitchnet")
+    set(PITCHNET_PLUGIN_CODE PTSC)
 endif()
 
 # Per-dirty-note synthesis diagnostics. synthesizeRegion() always logs a few
@@ -409,7 +411,8 @@ file(GLOB PLUGIN_SOURCES
     "Source/Plugin/AAX_VARABinding.cpp"
     "Source/Plugin/ARADocumentController.cpp" "Source/Plugin/ARADocumentController.h"
     "Source/Plugin/NonAraCaptureController.cpp" "Source/Plugin/NonAraCaptureController.h"
-    "Source/Plugin/HostCompatibility.cpp" "Source/Plugin/HostCompatibility.h")
+    "Source/Plugin/HostCompatibility.cpp" "Source/Plugin/HostCompatibility.h"
+    "Source/Plugin/UnisonCoordinator.cpp" "Source/Plugin/UnisonCoordinator.h")
 
 target_sources(PitchNet PRIVATE
     Source/Main.cpp

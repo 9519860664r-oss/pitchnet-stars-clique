@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PitchNet Stars Clique Edition: User Manual</title>
+<link rel="stylesheet" href="brand.css">
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+
+<!-- ============================== COVER ============================== -->
+<div class="cover glow-bg">
+  <div class="logo" role="img" aria-label="PitchNet"></div>
+  <div class="edition">Stars Clique Edition</div>
+  <h1>User Manual</h1>
+  <div class="sub">Every tool, panel and trick of the neural vocal pitch editor: recording from FL&nbsp;Studio, editing several tracks at once, tuning backing vocals, keys and custom scales.</div>
+  <div class="shot"><img src="img:stars-clique-main.png" alt="PitchNet Stars Clique Edition"></div>
+  <div class="meta"><b>Version 1.0</b> · VST3 for Windows<br>PitchNet by Session Loops and contributors, based on HachiTune<br>Stars Clique edition: modified by Goth Angel (Mikhail Mikhalchenko)<br>github.com/9519860664r-oss/pitchnet-stars-clique</div>
+</div>
+
+<!-- ============================== CONTENTS ============================== -->
+<div class="toc">
+  <div class="kicker">Inside</div>
+  <h2>Contents</h2>
+  <ol>
+    <li>What is PitchNet Stars Clique Edition <span>overview</span></li>
+    <li>Installation <span>installer, folders, removal</span></li>
+    <li>First steps in FL Studio and REAPER <span>getting audio in</span></li>
+    <li>The window at a glance <span>toolbar, panels, editor</span></li>
+    <li>Tracks: Edit, Ghost, Transfer <span>multitrack editing</span></li>
+    <li>Recording with Transfer <span>takes, punch-in, replace ranges</span></li>
+    <li>Editing notes <span>tools, Note Inspector, selection</span></li>
+    <li>Macros <span>correct pitch, timing, backing vocals</span></li>
+    <li>Key, tuning and custom scales <span>key changes, A4, cents</span></li>
+    <li>Navigation and zoom <span>mouse and keyboard</span></li>
+    <li>Keyboard shortcuts <span>reference</span></li>
+    <li>Skins, export and settings <span>Stars Clique, Classic, MIDI</span></li>
+    <li>Troubleshooting <span>common questions</span></li>
+    <li>Credits and license <span>AGPLv3</span></li>
+  </ol>
+</div>
+
+<!-- ============================== 1 ============================== -->
+<section class="chapter">
+  <div class="kicker">Chapter 1</div>
+  <h2>What is PitchNet Stars Clique Edition</h2>
+  <p class="lead">PitchNet is a pitch editor for vocals. It finds the notes in a recording, shows them as blobs on a piano roll and lets you move, stretch, tune and reshape them. A neural vocoder renders the result in real time, so edits sound natural.</p>
+  <p>PitchNet was created by <b>Session Loops and contributors</b> and is based on <b>HachiTune</b> by the HachiTune contributors. The pitch detection, note segmentation, neural vocoder and the editor itself are their work.</p>
+  <p>The <b>Stars Clique Edition</b> is a modified version by Goth Angel (Mikhail Mikhalchenko), Stars Clique. It adds working with many vocal tracks in hosts without ARA, such as FL&nbsp;Studio, tools for backing vocals and tuning, and a new look.</p>
+  <div class="grid2">
+    <div class="card"><h4>Multitrack in any host</h4><p>Every PitchNet on every mixer channel appears in one track list. Edit as many tracks at once as you like, show the rest as grey ghosts.</p></div>
+    <div class="card"><h4>Backing vocals to the lead</h4><p>Align timing to a reference track, tune to it in unison or in an interval, level loudness, quantize time.</p></div>
+    <div class="card"><h4>Recording from the DAW</h4><p>Transfer records from the DAW, with punch-in, re-recording any section and replace ranges.</p></div>
+    <div class="card"><h4>Keys and tuning</h4><p>A key shared by all tracks, key changes along the song, A4 from 400 to 480 Hz and your own scales with cents.</p></div>
+  </div>
+  <h3>Neural engine</h3>
+  <ul>
+    <li><b>FCPE</b> detects pitch, <b>GAME</b> splits the audio into notes.</li>
+    <li><b>PC-NSF-HiFiGAN</b> resynthesizes the edited voice. Unpitched sounds (breaths, consonants, rasp) stay as in the original.</li>
+    <li>All models run locally on your computer. Nothing is sent anywhere.</li>
+  </ul>
+</section>
+
+<!-- ============================== 2 ============================== -->
+<section class="chapter">
+  <div class="kicker">Chapter 2</div>
+  <h2>Installation</h2>
+  <h3>Requirements</h3>
+  <ul>
+    <li>Windows 10 or 11, 64-bit.</li>
+    <li>A VST3 host: FL&nbsp;Studio, REAPER, Cubase, Studio One, Ableton Live, Bitwig and others.</li>
+    <li>About 400 MB of disk space (the models take most of it).</li>
+  </ul>
+  <h3>Install</h3>
+  <ol class="steps">
+    <li>Download <b>PitchNet-StarsClique-1.0.0-Setup.exe</b> from the Releases page on GitHub.</li>
+    <li>Close your DAW, then run the installer and accept the license (AGPLv3).</li>
+    <li>Choose the components: the <b>VST3 plug-in</b> and, if you want it, the <b>standalone app</b>. The neural models are always installed.</li>
+    <li>Open your DAW and rescan plug-ins. Look for <b>PitchNet (Stars Clique ver)</b>; the host lists Session Loops as its maker.</li>
+  </ol>
+  <table>
+    <tr><th>What</th><th>Where it goes</th></tr>
+    <tr><td>VST3 plug-in</td><td>C:\Program Files\Common Files\VST3\Stars Clique\</td></tr>
+    <tr><td>Standalone app</td><td>C:\Program Files\Stars Clique\PitchNet\</td></tr>
+    <tr><td>Neural models</td><td>C:\ProgramData\Session Loops\PitchNet\models\</td></tr>
+    <tr><td>Your settings, skin, saved scales</td><td>%APPDATA%\PitchNet\</td></tr>
+  </table>
+  <div class="card tip"><div class="label">Tip</div><p>The models folder keeps the original PitchNet name on purpose: the original PitchNet and this edition share one copy of the models.</p></div>
+  <h3>Update and remove</h3>
+  <p>To update, run the newer installer over the old one. To remove, use <b>Settings › Apps › PitchNet Stars Clique Edition › Uninstall</b>. Your settings in %APPDATA% stay, so a later install picks them up.</p>
+</section>
+
+<!-- ============================== 3 ============================== -->
+<section class="chapter">
+  <div class="kicker">Chapter 3</div>
+  <h2>First steps in FL Studio and REAPER</h2>
+  <p class="lead">PitchNet needs to hear the audio before it can edit it. In hosts with ARA it reads the audio directly; elsewhere it records it while the DAW plays. This is called <b>Transfer</b>.</p>
+  <h3>FL Studio (and other hosts without ARA)</h3>
+  <ol class="steps">
+    <li>Put <b>PitchNet (Stars Clique ver)</b> on the mixer insert of each vocal track you want to edit. One instance per track.</li>
+    <li>Open any of the PitchNet windows. The track list on the left shows every instance with its mixer channel name.</li>
+    <li>Click the pink <b>Transfer</b> ring <span class="swatch sw-rec"></span> on the tracks you want to record (or the record dot in the toolbar for the track of this window).</li>
+    <li>Play the song in FL. PitchNet records the armed tracks, all in one pass.</li>
+    <li>Stop or pause. Each take is finished and analysed; its notes appear in a few seconds.</li>
+  </ol>
+  <div class="card tip"><div class="label">Tip</div><p>If FL loops a selection, the jump back to the start of the loop also finishes the take. Playing again from any point re-records from there and replaces the audio of that section only.</p></div>
+  <h3>REAPER (ARA)</h3>
+  <ol class="steps">
+    <li>Add PitchNet as an FX on a media item or track. REAPER opens it in ARA mode.</li>
+    <li>The audio is available at once: no recording needed. The notes appear after analysis.</li>
+    <li>Edits play back through REAPER as usual.</li>
+  </ol>
+  <h3>Hearing the result</h3>
+  <p>PitchNet replaces the original audio with the edited one in real time, so you hear the edits through your DAW's playback. In the plug-in window, <b>Live audition</b> (the speaker button) lets you hear a note while you drag it.</p>
+</section>
+
+<!-- ============================== 4 ============================== -->
+<section class="chapter">
+  <div class="kicker">Chapter 4</div>
+  <h2>The window at a glance</h2>
+  <figure><img src="img:stars-clique-notes.png" alt="The PitchNet window"><figcaption>Toolbar on top, track list on the left, Note Inspector above the editor.</figcaption></figure>
+  <h3>Toolbar, from left to right</h3>
+  <table>
+    <tr><th>Control</th><th>What it does</th></tr>
+    <tr><td>PitchNet logo</td><td>Menu: change skin, export MIDI, user manual and releases, credits.</td></tr>
+    <tr><td>Track list</td><td>Shows or hides the track list.</td></tr>
+    <tr><td>Record (pink dot)</td><td>Transfer for this window's track (hosts without ARA). Glows while armed.</td></tr>
+    <tr><td>Stop, Play / Pause, Loop</td><td>Transport. In hosts without ARA the DAW drives playback, so these may be disabled.</td></tr>
+    <tr><td>Follow</td><td>The view follows the playhead. It pauses while notes are selected or after you scroll by hand.</td></tr>
+    <tr><td>Tools</td><td>Main tool, Split, Pitch drawing, Timing (keys <kbd>1</kbd>–<kbd>4</kbd>).</td></tr>
+    <tr><td>Key (for example "B Major")</td><td>Key, mode, custom scales and the A4 reference pitch. Shared by all tracks.</td></tr>
+    <tr><td>Correct Pitch</td><td>Opens the Correct Pitch macro for the selected notes.</td></tr>
+    <tr><td>Live audition</td><td>Hear notes while you drag them.</td></tr>
+    <tr><td>Undo, Redo</td><td><kbd>Ctrl+Z</kbd>, <kbd>Ctrl+Y</kbd>.</td></tr>
+    <tr><td>Clip / Track (ARA only)</td><td>Edit one clip or the whole track.</td></tr>
+    <tr><td>Parameters</td><td>Shows or hides the parameters panel on the right.</td></tr>
+  </table>
+  <h3>Editor</h3>
+  <ul>
+    <li><b>Piano keys</b> on the left, the time ruler and the loop strip on top.</li>
+    <li><b>Notes</b> are drawn as blobs shaped like their waveform. The white line is the pitch curve.</li>
+    <li><b>Note colour shows how well a note hits the key</b>: blue exactly on a note of the key, then violet, pink and red the further it is from it (red at half a semitone or more). A note on a semitone outside the key is red. With a custom scale the cents count too.</li>
+    <li><b>Rows follow the key</b>: notes of the key are light rows, the rest dark, like a scale highlight in a DAW piano roll. Change the key and the rows change with it; key changes along the song are shown too. With a custom scale, a dashed line marks each detuned note's exact pitch.</li>
+    <li>Right-click the background to switch to <b>Pitch Lines</b>.</li>
+    <li>Zoom sliders and the overview button sit in the bottom-right corner.</li>
+  </ul>
+</section>
+
+<!-- ============================== 5 ============================== -->
+<section class="chapter">
+  <div class="kicker">Chapter 5</div>
+  <h2>Tracks: Edit, Ghost, Transfer</h2>
+  <p class="lead">Each PitchNet instance is a track. The track list shows all of them, in every window, with the name and colour from the DAW.</p>
+  <table>
+    <tr><th>Control</th><th>Meaning</th></tr>
+    <tr><td>▭ window mark</td><td>The track this window belongs to.</td></tr>
+    <tr><td>★ star</td><td>The lead of a group of doubles, in the group's colour.</td></tr>
+    <tr><td>D</td><td>A double, in its group's colour; a stripe of that colour runs down the row.</td></tr>
+    <tr><td>Highlighted row</td><td>A selected track. Click a row to select it, <kbd>Ctrl</kbd>+click to add or remove one, <kbd>Shift</kbd>+click to select a range.</td></tr>
+    <tr><td><span class="swatch sw-edit"></span> Edit (blue pill)</td><td>The track's notes are shown in colour and can be edited. Any number of tracks can be on at once.</td></tr>
+    <tr><td><span class="swatch sw-ghost"></span> Ghost (white pill)</td><td>The track's notes are shown as grey blobs for orientation only. The closer a ghost note is to the key, the lighter it is.</td></tr>
+    <tr><td><span class="swatch sw-rec"></span> Transfer (pink ring)</td><td>Arms the track for recording (hosts without ARA). Filled while armed, with a halo while audio is being recorded.</td></tr>
+  </table>
+  <h3>Editing several tracks</h3>
+  <ul>
+    <li>Turn on Edit for several tracks: their notes are edited together (selection, pitch, the arrow keys, timing, delete, macros).</li>
+    <li>In REAPER, Edit on another track shows its clips on the timeline next to the active track's (the view switches to Track).</li>
+    <li>Select several tracks, then press Edit, Ghost or Transfer on one of them: every selected track changes the same way. A button on a track that is not selected changes only that track.</li>
+    <li>Your own track (window mark), and in REAPER the track the window shows, can be switched off or made a ghost like any other.</li>
+    <li>Double-click a ghost note to swap the roles of the two tracks.</li>
+    <li>When you click a note, the other tracks turn grey for a moment, so you see which track it belongs to.</li>
+    <li>Changes made in one window appear in the others right away.</li>
+  </ul>
+  <h3>Lead and doubles: unison</h3>
+  <p>Doubles usually repeat the lead in places. PitchNet can tune them to the lead note for note.</p>
+  <ol class="steps">
+    <li><b>Make a group.</b> Select the lead and its doubles (click, <kbd>Ctrl</kbd>+click) and press <b>Group selected</b>. This window's track leads if it is selected, otherwise the top one; click a double's <b>D</b> to make it the lead instead. Or press <b>Find doubles</b>: PitchNet compares the tracks' notes and suggests groups; nothing changes until you press Create.</li>
+    <li><b>Press Unison</b> under the list. It lights up while on: the doubles take the lead's notes. Each double keeps what makes it a separate singer (its own vibrato, jitter, slides and transitions between notes) and takes from the lead only where the notes sit and how they drift. Lead and double are compared at the moments they sing the same sound, so a double sung a little early or late still gets the right note, and the correction changes smoothly at the double's own transitions, without clicks. Octave doubles stay in their octave; the lead's sibilants never set a double's pitch. Where the lead is silent (ad-libs), or a double note is more than about 3.5 semitones from the lead's (another syllable, not a missed note), the double is left alone.</li>
+    <li><b>Set the strength</b> with the slider: 0 % leaves the doubles as sung, 100 % on the lead's notes. Even at 100 % the last few cents stay the double's own, so stacked doubles sound like people, not copies.</li>
+  </ol>
+  <ul>
+    <li>While Unison is on, the doubles follow every change to the lead, even with their windows closed.</li>
+    <li>A double note follows the lead note it sounds with the longest, when they sound together for at least a quarter of the double note. Splits and joins line up: inside the note the double follows the lead's pitch frame by frame.</li>
+    <li>Switch Unison off, or take a track out of the group, and the doubles go back to their own pitch.</li>
+    <li><b>Ungroup</b> (or right-click › <b>Remove from group</b>) takes every selected track out of its group; taking out a lead ends its group. Right-click also offers <b>Add as double to</b>. Groups are saved with the DAW project.</li>
+  </ul>
+  <h3>Lead and doubles: timing</h3>
+  <p>Press <b>Timing</b> in the group, under Unison, and the doubles line up with the lead in time.</p>
+  <ul>
+    <li>The doubles are matched to the lead by the shape of the sound (its spectrum, loudness and onsets), syllable by syllable, not only by where notes start. Inside a note the sound stretches or squeezes where a syllable is longer or shorter than the lead's.</li>
+    <li>The slider sets the strength: 0 % leaves the timing as sung, 100 % follows the lead. Differences under about 23 ms always stay, so the doubles still sound sung, and no sound moves more than about 300 ms.</li>
+    <li>Sibilants move along without stretching. Phrases are aligned one by one; long pauses are left out.</li>
+    <li>Timing is lined up first, then Unison tunes the pitch, so both follow the same syllables. Both work live, even with the doubles' windows closed.</li>
+    <li>Switch Timing off and every note goes back to its own timing.</li>
+    <li>In REAPER groups, Unison and Timing work the same way, and a group is saved with the REAPER project. REAPER lets PitchNet read the other tracks' audio only after the song has played once: if the window says <i>Press Play once</i>, start playback for a moment.</li>
+  </ul>
+  <h3>Settings under the list</h3>
+  <ul>
+    <li><b>Use DAW Track Color</b>: rows and notes use the colour of the mixer channel.</li>
+    <li><b>Spread unison tracks</b>: notes of different tracks that sit on top of each other are fanned out, so you can grab each one.</li>
+    <li><b>Editing Mix</b>: when PitchNet plays a preview with the DAW stopped: left = only edited tracks, centre = with the ghosts, right = every track.</li>
+  </ul>
+</section>
+
+<!-- ============================== 6 ============================== -->
+<section class="chapter">
+  <div class="kicker">Chapter 6</div>
+  <h2>Recording with Transfer</h2>
+  <p class="lead">In hosts without ARA, PitchNet records the audio as the DAW plays it. You can record many tracks in one pass and fix single sections later.</p>
+  <h3>Takes</h3>
+  <ul>
+    <li><b>Arm</b> one or more tracks with the pink ring, then play.</li>
+    <li><b>Pause or stop</b> in the DAW: every armed track finishes its take and is analysed.</li>
+    <li><b>Loop end</b>: when the DAW jumps back to the start of a looped selection, the take finishes too.</li>
+    <li><b>Punch in / out</b>: switch Transfer on or off during playback to record only part of the song.</li>
+    <li><b>Re-record</b> from any point: the new audio replaces only the section you recorded again; your edits elsewhere stay.</li>
+  </ul>
+  <h3>Replace ranges</h3>
+  <p>Right-click the time ruler for the replace-range menu.</p>
+  <ul>
+    <li><b>Show Replace Ranges</b>: shows on the ruler which sections PitchNet plays instead of the original.</li>
+    <li>Drag the edges of a range to make it longer or shorter.</li>
+    <li><b>Set Replace Ranges to Notes</b>: PitchNet only replaces the audio where there are notes.</li>
+    <li><b>Reset Replace Ranges to Transferred Audio</b>: back to the whole recorded section.</li>
+  </ul>
+  <div class="card warn"><div class="label">Note</div><p>Transfer records what reaches the plug-in. Put PitchNet before effects such as reverb or delay, so it gets the dry vocal.</p></div>
+</section>
+
+<!-- ============================== 7 ============================== -->
+<section class="chapter">
+  <div class="kicker">Chapter 7</div>
+  <h2>Editing notes</h2>
+  <h3>Main tool <kbd>1</kbd></h3>
+  <ul>
+    <li><b>Drag a note</b> up or down to change pitch, sideways to move it in time. The first movement locks the axis, so a pitch change does not shift the timing by accident.</li>
+    <li><b>Hold Alt</b> while dragging to move without the grid.</li>
+    <li><b>Double-click</b> a note: it snaps to the nearest semitone, or to the nearest note of the key when the pitch snap is set to the scale (custom scales with their cents). With Alt it keeps its offset.</li>
+    <li>Drag the <b>edges</b> of a note to make it longer or shorter.</li>
+    <li>Moving to another beat keeps the note's offset from the beat.</li>
+  </ul>
+  <h3>Split <kbd>2</kbd>, Pitch drawing <kbd>3</kbd>, Timing <kbd>4</kbd></h3>
+  <ul>
+    <li><b>Split</b>: click inside a note to cut it in two.</li>
+    <li><b>Pitch drawing</b>: draw the pitch curve by hand, for slides and vibrato.</li>
+    <li><b>Timing</b>: move and stretch notes in time.</li>
+    <li>Note boundaries can be soft (linked edges with a smooth transition) or hard.</li>
+  </ul>
+  <h3>Sibilants</h3>
+  <ul>
+    <li>PitchNet finds the sibilants of every note: "s", "sh", "f", "t", "k" and breaths, the parts with no pitch. They sit at the start and end of a note and are drawn <b>hatched</b>; a breath can be a hatched note of its own.</li>
+    <li>A note moves with its sibilants, but they keep their own sound: when the pitch changes, only the pitched part is shifted; when the note is moved or stretched, the sibilants move without stretching ("sweet" becomes s-weeee-t).</li>
+    <li>Quantize Time and Align to Reference place a note's musical start after its sibilant.</li>
+    <li>Right-click the editor › <b>Sibilants…</b>: <b>Show Sibilants</b>, <b>Find Sibilants Again</b>, <b>Sibilant from Note Start to Here</b> and <b>from Here to Note End</b> (at the point you right-clicked), <b>Remove Sibilants</b> (they are then pitch-shifted with the note, as an effect), and <b>Sibilant Balance</b> from -100 % (sibilants muted) to +100 % (only the sibilants). Softer sibilants on doubles keep a group from hissing in chorus. The commands work on the selected notes, or on the note you clicked.</li>
+  </ul>
+  <h3>Note Inspector</h3>
+  <p>The strip above the editor shows the selected notes. Type a value and press <kbd>Enter</kbd> to set it for every selected note. If the notes differ, the field shows "–".</p>
+  <table>
+    <tr><th>Field</th><th>Input</th></tr>
+    <tr><td>Pitch</td><td>A note name (<code>C3</code>, <code>F#4 +10</code>) or a change (<code>+2</code>, <code>-30 ct</code>). The frequency in Hz is shown next to it.</td></tr>
+    <tr><td>Modulation</td><td>Vibrato depth in %. 0 % flattens it, 100 % is the original.</td></tr>
+    <tr><td>Drift</td><td>Slow pitch drift in %.</td></tr>
+    <tr><td>Formant</td><td>Formant shift in semitones: the colour of the voice.</td></tr>
+    <tr><td>Amplitude</td><td>Note level in dB.</td></tr>
+    <tr><td>Note Off (round button)</td><td>Mutes the selected notes; click again to bring them back. A muted note shows only its outline.</td></tr>
+  </table>
+  <h3>Selecting notes</h3>
+  <ul>
+    <li><kbd>Ctrl</kbd>+click adds or removes a note, <kbd>Shift</kbd>+click selects a range, <kbd>Ctrl+Shift</kbd>+drag draws a selection box.</li>
+    <li>Click a key on the piano to select all notes of that pitch; double-click it for every octave.</li>
+    <li>Right-click menu: <b>Select All</b>, <b>Select Same Pitch</b>, <b>Select All Following</b>, <b>Invert Selection</b>, <b>Restore Last Selection</b>.</li>
+  </ul>
+  <h3>Copy, cut, paste</h3>
+  <ul>
+    <li><kbd>Ctrl+C</kbd>, <kbd>Ctrl+X</kbd>, <kbd>Ctrl+V</kbd> copy notes with their audio.</li>
+    <li>Paste goes to the cursor; over a selection it replaces the selected notes and stretches to fit.</li>
+    <li>Copy between tracks: one to one, many to one, or one to many.</li>
+  </ul>
+  <h3>Undo and restore</h3>
+  <ul>
+    <li><kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd> undo and redo any edit.</li>
+    <li>Right-click › <b>Restore Original</b>: pitch, timing, amplitude, formant or all edits of the selected notes.</li>
+    <li><b>Whole Track: Undo All Changes</b> resets the whole track.</li>
+    <li><b>Add Random Deviations</b>: a little natural looseness in pitch or time (subtle, medium, strong).</li>
+    <li><kbd>Delete</kbd> or <kbd>Backspace</kbd> mutes the selected notes.</li>
+  </ul>
+</section>
+
+<!-- ============================== 8 ============================== -->
+<section class="chapter">
+  <div class="kicker">Chapter 8</div>
+  <h2>Macros</h2>
+  <p class="lead">Macros work on the selected notes (or all notes when nothing is selected). They remember their settings and leave notes you edited by hand alone if you ask them to.</p>
+  <div class="card"><h4>Correct Pitch</h4><p>Pulls the pitch centre of notes towards their target and evens out drift, with separate strengths. With <b>Snap to Scale</b> on, the target is the nearest note of the key in force at the note (key changes, custom scales with cents); off, it is the nearest semitone. Both follow the A4 reference pitch. Option: include notes edited by hand. Opened from the toolbar button.</p></div>
+  <div class="card"><h4>Quantize Time</h4><p>Moves notes to the grid. Groove reference: Auto, a note value from 1/1 to 1/32 with triplets, or another track. Intensity sets how far notes move.</p></div>
+  <div class="card"><h4>Align to Reference</h4><p>Lines backing vocals up with a lead track: the starts and ends of notes, and optionally pitch and loudness, with a strength control. It can also tune to the reference in unison or in an interval of the key (third, fourth, fifth, octave up or down).</p></div>
+  <div class="card"><h4>Leveling</h4><p>Two sliders bring loud and quiet notes towards the average level.</p></div>
+  <p>Quantize Time, Align to Reference, Leveling and Add Random Deviations are in the right-click menu of the editor.</p>
+</section>
+
+<!-- ============================== 9 ============================== -->
+<section class="chapter">
+  <div class="kicker">Chapter 9</div>
+  <h2>Key, tuning and custom scales</h2>
+  <h3>One key for every track</h3>
+  <p>The key in the toolbar is shared by every track and every window. Change it once and the grid, the ghost colours and Correct Pitch follow everywhere.</p>
+  <h3>Key changes</h3>
+  <ul>
+    <li>Right-click the time ruler › <b>Key change here</b>. From that point on, the new key applies (grid, ghost notes, Correct Pitch).</li>
+    <li>Right-click a marker to remove it, or remove all key changes at once.</li>
+  </ul>
+  <h3>Reference pitch (A4)</h3>
+  <p>Key menu › <b>Reference pitch (A4)</b>: any value from 400 to 480 Hz. Shared by every track.</p>
+  <h3>Custom scales</h3>
+  <ol class="steps">
+    <li>Key menu › <b>Edit custom scale…</b></li>
+    <li>Choose which notes belong to the scale and detune any of them in cents.</li>
+    <li>Give it a name and <b>Save</b>. Saved scales appear under <b>Saved custom scales</b> in the key menu.</li>
+    <li>Press <b>Use</b>: double-click snapping and Correct Pitch now tune to your scale and its cents.</li>
+  </ol>
+  <div class="card tip"><div class="label">Tip</div><p>Saved scales live in %APPDATA%\PitchNet\custom_scales.json. Copy the file to share your scales.</p></div>
+</section>
+
+<!-- ============================== 10 ============================== -->
+<section class="chapter">
+  <div class="kicker">Chapter 10</div>
+  <h2>Navigation and zoom</h2>
+  <p class="lead">Move around the editor with the mouse and a few modifier keys.</p>
+  <table>
+    <tr><th>Action</th><th>Result</th></tr>
+    <tr><td>Mouse wheel</td><td>Scroll up and down</td></tr>
+    <tr><td>Shift + wheel</td><td>Scroll left and right</td></tr>
+    <tr><td>Ctrl + Alt + wheel, or pinch</td><td>Zoom both axes around the mouse</td></tr>
+    <tr><td>Ctrl + Shift + drag</td><td>Hand: move the view</td></tr>
+    <tr><td>Ctrl + Alt + drag</td><td>Zoom tool around the point you clicked</td></tr>
+    <tr><td>Drag up/down on the time ruler</td><td>Zoom in time; drag sideways to move the cursor</td></tr>
+    <tr><td>Double-click a scroll bar</td><td>Show everything (or the loop range)</td></tr>
+    <tr><td>Ctrl + Shift + double-click a note</td><td>Zoom to that note or the selection</td></tr>
+    <tr><td>Ctrl + Alt + double-click the background</td><td>Back to the previous zoom</td></tr>
+    <tr><td>Zoom sliders (bottom right)</td><td>Horizontal and vertical zoom</td></tr>
+  </table>
+</section>
+
+<!-- ============================== 11 ============================== -->
+<section class="chapter">
+  <div class="kicker">Chapter 11</div>
+  <h2>Keyboard shortcuts</h2>
+  <table>
+    <tr><th>Keys</th><th>Command</th></tr>
+    <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd></td><td>Main tool, Split, Pitch drawing, Timing</td></tr>
+    <tr><td><kbd>Space</kbd></td><td>Play / pause</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>Stop</td></tr>
+    <tr><td><kbd>Home</kbd> / <kbd>End</kbd></td><td>Go to start / end</td></tr>
+    <tr><td><kbd>Ctrl+Z</kbd></td><td>Undo</td></tr>
+    <tr><td><kbd>Ctrl+Y</kbd>, <kbd>Ctrl+Shift+Z</kbd></td><td>Redo</td></tr>
+    <tr><td><kbd>Ctrl+A</kbd></td><td>Select all notes</td></tr>
+    <tr><td><kbd>Ctrl+C</kbd> / <kbd>Ctrl+X</kbd> / <kbd>Ctrl+V</kbd></td><td>Copy / cut / paste notes</td></tr>
+    <tr><td><kbd>Up</kbd> / <kbd>Down</kbd></td><td>Selected notes a semitone up / down</td></tr>
+    <tr><td><kbd>Shift</kbd> + <kbd>Up</kbd> / <kbd>Down</kbd></td><td>An octave up / down</td></tr>
+    <tr><td><kbd>Delete</kbd>, <kbd>Backspace</kbd></td><td>Mute the selected notes</td></tr>
+    <tr><td><kbd>Ctrl+Shift+D</kbd></td><td>Show or hide the delta pitch curve</td></tr>
+    <tr><td><kbd>Ctrl+Shift+B</kbd></td><td>Show or hide the base pitch curve</td></tr>
+    <tr><td><kbd>Ctrl+,</kbd></td><td>Settings (standalone app)</td></tr>
+  </table>
+</section>
+
+<!-- ============================== 12 ============================== -->
+<section class="chapter">
+  <div class="kicker">Chapter 12</div>
+  <h2>Skins, export and settings</h2>
+  <h3>Skins</h3>
+  <p>Click the PitchNet logo › <b>Change skin</b>. The last skin you chose opens next time.</p>
+  <div class="grid2">
+    <div class="card"><h4>Stars Clique</h4><p>Deep violet with floating glass panels, vector icons and soft glows.</p></div>
+    <div class="card"><h4>Classic</h4><p>The original dark grey PitchNet look.</p></div>
+  </div>
+  <figure><img src="img:classic-skin.png" alt="Classic skin"><figcaption>The Classic skin.</figcaption></figure>
+  <h3>Export</h3>
+  <ul>
+    <li>Logo menu › <b>Export MIDI…</b>: the notes of the shown tracks, each track on its own MIDI channel.</li>
+    <li>The edited audio itself comes out of your DAW: render or bounce the track as usual.</li>
+  </ul>
+  <h3>Parameters panel</h3>
+  <p>The button on the far right of the toolbar opens the parameters panel: pitch and timing settings, rendering options, language and interface brightness.</p>
+</section>
+
+<!-- ============================== 13 ============================== -->
+<section class="chapter">
+  <div class="kicker">Chapter 13</div>
+  <h2>Troubleshooting</h2>
+  <div class="card"><h4>The plug-in does not appear in the DAW</h4><p>Rescan VST3 plug-ins. In FL Studio: Options › Manage plugins › Find more plugins. Check that the plug-in is in C:\Program Files\Common Files\VST3\Stars Clique\.</p></div>
+  <div class="card"><h4>No notes appear after recording</h4><p>Make sure the track was armed (pink ring filled) while the DAW played, and that playback was stopped or paused afterwards. Analysis takes a moment after the take ends.</p></div>
+  <div class="card"><h4>PitchNet says the models are missing</h4><p>Run the installer again: the models must be in C:\ProgramData\Session Loops\PitchNet\models\.</p></div>
+  <div class="card"><h4>I hear the original instead of my edits</h4><p>The edited audio replaces the original only inside the replace ranges. Right-click the time ruler › Show Replace Ranges.</p></div>
+  <div class="card"><h4>Reverb or delay is recorded too</h4><p>Move PitchNet before time-based effects on the mixer channel.</p></div>
+  <div class="card"><h4>Reporting a problem</h4><p>Open an issue on GitHub with your host, its version and the steps that lead to the problem.</p></div>
+</section>
+
+<!-- ============================== 14 ============================== -->
+<section class="chapter">
+  <div class="kicker">Chapter 14</div>
+  <h2>Credits and license</h2>
+  <div class="card"><h4>PitchNet · original authors</h4><p>Created by <b>Session Loops and contributors</b>: Jie Chen, 一支粉笔, KRKT, hrukalive, Steven Cooper, hyperrealist, 暗雨冥.<br>github.com/SessionLoops/PitchNet</p></div>
+  <div class="card"><h4>HachiTune</h4><p>PitchNet is based on HachiTune by the HachiTune contributors.<br>github.com/KCKT0112/HachiTune</p></div>
+  <div class="card"><h4>Stars Clique Edition · modifications</h4><p>Modified and extended by <b>Goth Angel (Mikhail Mikhalchenko)</b>, Stars Clique.<br>github.com/9519860664r-oss/pitchnet-stars-clique</p></div>
+  <div class="card"><h4>Models and libraries</h4><p>PC-NSF-HiFiGAN and GAME by Team OpenVPI · FCPE by CN_ChiTu · RMVPE by yxlllc · JUCE · ONNX Runtime · r8brain-free-src by Aleksey Vaneev · ARA SDK by Celemony Software GmbH and contributors.</p></div>
+  <h3>License</h3>
+  <p>PitchNet Stars Clique Edition is free software under the <b>GNU Affero General Public License v3</b> (AGPLv3). You may use, study, change and share it. If you distribute it or a changed version, you must also share the complete source code under the same license and keep all copyright notices and credits, including the Credits window. Third-party licenses are listed in THIRD_PARTY_NOTICES.txt.</p>
+  <div class="end">Made with care by Stars Clique · Goth Angel</div>
+</section>
+
+</body>
+</html>

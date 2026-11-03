@@ -91,6 +91,52 @@ inline void applyNoteTimingStates(Project& project,
     project.setModified(true);
 }
 
+/** Shift `moved` by `deltaFrames`; a note joined to a moved note's edge and
+    not moved itself stretches so the edge stays joined (Main Tool).
+    Returns the new state of every note that changes. */
+inline std::vector<NoteTimingState> shiftNotesKeepingJoins(
+    Project& project, const std::vector<Note*>& moved, int deltaFrames)
+{
+    std::vector<NoteTimingState> result;
+    if (deltaFrames == 0)
+        return result;
+    const auto isMoved = [&](const Note* n) {
+        return std::find(moved.begin(), moved.end(), n) != moved.end();
+    };
+    auto stateOf = [&](Note* n) -> NoteTimingState& {
+        for (auto& s : result)
+            if (s.note == n)
+                return s;
+        result.push_back(NoteTimingState::capture(*n));
+        return result.back();
+    };
+    for (auto* note : moved)
+    {
+        auto& s = stateOf(note);
+        s.startFrame = note->getStartFrame() + deltaFrames;
+        s.endFrame = note->getEndFrame() + deltaFrames;
+    }
+    for (auto& other : project.getNotes())
+    {
+        if (isMoved(&other))
+            continue;
+        for (auto* note : moved)
+        {
+            if (other.getEndFrame() == note->getStartFrame())
+            {
+                auto& s = stateOf(&other);
+                s.endFrame = std::max(s.startFrame + 1, note->getStartFrame() + deltaFrames);
+            }
+            if (other.getStartFrame() == note->getEndFrame())
+            {
+                auto& s = stateOf(&other);
+                s.startFrame = std::min(s.endFrame - 1, note->getEndFrame() + deltaFrames);
+            }
+        }
+    }
+    return result;
+}
+
 class TimingAction final : public UndoableAction
 {
 public:

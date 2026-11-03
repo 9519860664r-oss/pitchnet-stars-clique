@@ -11,6 +11,10 @@ struct Region { int start; int end; float db; };
 // Keep the -60 dB endpoint finite so gain edits remain reversible.
 inline float linearGain(float db) { return std::pow(10.0f, db / 20.0f); }
 
+// "Delete" on a note silences it, through the same gain path:
+// finite, so undo divides it back out exactly, yet far below audibility.
+constexpr float kDeletedNoteDb = -96.0f;
+
 inline std::vector<float> build(const std::vector<Region>& regions,
                                 int start, int count, int totalSamples, int hopSize)
 {

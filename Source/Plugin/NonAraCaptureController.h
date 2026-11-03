@@ -47,6 +47,10 @@ public:
   // Called from audio thread (or message thread when safe) to stop capturing.
   void stop();
 
+  // Punch out: Transfer pressed again during playback ends the take
+  // at the next block and keeps what was recorded.
+  void requestPunchOut() { punchOutRequested.store(true); }
+
   bool isAnalysisPending() const { return analysisPending.load(); }
   State getState() const { return state.load(); }
 
@@ -69,6 +73,7 @@ private:
 
   std::atomic<bool> analysisPending{false};
   std::atomic<bool> shouldFinalizeFlag{false};
+  std::atomic<bool> punchOutRequested{false};
 
   float audioThreshold = 0.001f;
   double minCaptureSeconds = 0.5;

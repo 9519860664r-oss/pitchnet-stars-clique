@@ -70,6 +70,12 @@ inline ScaleToneState getScaleToneState(ScaleMode mode, int noteInOctave, int ro
 
   if (mode == ScaleMode::Chromatic)
     return ScaleToneState::InScale;
+  if (mode == ScaleMode::Custom)
+  {
+    if (!ScaleUtils::isPitchClassInScale(mode, normalizedNote, normalizedRoot))
+      return ScaleToneState::OutOfScale;
+    return normalizedNote == normalizedRoot ? ScaleToneState::Root : ScaleToneState::InScale;
+  }
   if (normalizedNote == normalizedRoot)
     return ScaleToneState::Root;
   if (ScaleUtils::isPitchClassInScale(mode, normalizedNote, normalizedRoot))

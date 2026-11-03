@@ -21,8 +21,27 @@ struct MidiExportOptions {
   bool quantizePitch = true;     // Round pitch to nearest semitone
 };
 
+struct MidiExportTrack {
+  juce::String name;
+  std::vector<Note> notes;
+};
+
 class MidiExporter {
 public:
+  /** One MIDI track per entry (type 1 file), each on its own channel;
+      channel 10 (drums) is skipped. */
+  static bool exportTracksToFile(const std::vector<MidiExportTrack> &tracks,
+                                 const juce::File &file,
+                                 const MidiExportOptions &options = MidiExportOptions());
+  static juce::MidiFile
+  createMultiTrackMidiFile(const std::vector<MidiExportTrack> &tracks,
+                           const MidiExportOptions &options = MidiExportOptions());
+  /** MIDI channel (0-based) of the n-th track. */
+  static int channelForTrack(int index) {
+    const int c = index % 15;
+    return c >= 9 ? c + 1 : c;
+  }
+
   using ExportOptions = MidiExportOptions;
 
   /**

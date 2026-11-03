@@ -65,11 +65,11 @@ public:
                 const auto textColour =
                     editor->findColour(juce::TextEditor::textColourId);
                 editor->setColour(juce::TextEditor::highlightColourId,
-                                  juce::Colour(0xFF7A7D8Bu));
+                                  Skin::colour(0xFF7A7D8Bu));
                 editor->setColour(juce::TextEditor::outlineColourId,
-                                  juce::Colour(0xFF3C3C3Cu));
+                                  Skin::colour(0xFF3C3C3Cu));
                 editor->setColour(juce::TextEditor::focusedOutlineColourId,
-                                  juce::Colour(0xFF3C3C3Cu));
+                                  Skin::colour(0xFF3C3C3Cu));
                 editor->setColour(juce::CaretComponent::caretColourId, textColour);
             }
         };
@@ -85,14 +85,14 @@ public:
             static_cast<float>(width), static_cast<float>(height));
         const auto track = juce::Rectangle<float>(
             bounds.getX(), bounds.getCentreY() - 1.0f, bounds.getWidth(), 2.0f);
-        g.setColour(juce::Colour(0xFF494949u));
+        g.setColour(Skin::colour(0xFF494949u));
         g.fillRoundedRectangle(track, 1.0f);
 
         constexpr float thumbRadius = 4.5f;
         const auto thumbX = juce::jlimit(track.getX() + thumbRadius,
                                          track.getRight() - thumbRadius,
                                          sliderPos);
-        g.setColour(juce::Colour(0xFF9B9B9Bu));
+        g.setColour(Skin::colour(0xFF9B9B9Bu));
         g.fillEllipse(thumbX - thumbRadius, bounds.getCentreY() - thumbRadius,
                       thumbRadius * 2.0f, thumbRadius * 2.0f);
     }
@@ -112,13 +112,13 @@ public:
         setSliderStyle(juce::Slider::LinearHorizontal);
         setTextBoxStyle(juce::Slider::TextBoxRight, false, 54, 22);
         setLookAndFeel(&MacroSliderLookAndFeel::getInstance());
-        setColour(juce::Slider::textBoxTextColourId, juce::Colour(0xFFE6E6E6u));
+        setColour(juce::Slider::textBoxTextColourId, Skin::colour(0xFFE6E6E6u));
         setColour(juce::Slider::textBoxBackgroundColourId,
-                  juce::Colour(0xFF30302Eu));
+                  Skin::colour(0xFF30302Eu));
         setColour(juce::Slider::textBoxOutlineColourId,
                   juce::Colours::transparentBlack);
         setColour(juce::Slider::textBoxHighlightColourId,
-                  juce::Colour(0xFF7A7D8Bu));
+                  Skin::colour(0xFF7A7D8Bu));
     }
 
     ~MacroSlider() override
@@ -137,14 +137,14 @@ public:
     {
         setColour(juce::PopupMenu::backgroundColourId, juce::Colours::transparentBlack);
         setColour(juce::PopupMenu::textColourId, APP_COLOR_TEXT_PRIMARY);
-        setColour(juce::PopupMenu::highlightedBackgroundColourId, juce::Colour(0xFF171717u));
+        setColour(juce::PopupMenu::highlightedBackgroundColourId, Skin::colour(0xFF171717u));
         setColour(juce::PopupMenu::highlightedTextColourId, APP_COLOR_TEXT_PRIMARY);
 
-        setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xFF30302Eu));
-        setColour(juce::ComboBox::textColourId, juce::Colour(0xFFE6E6E6u));
+        setColour(juce::ComboBox::backgroundColourId, Skin::colour(0xFF30302Eu));
+        setColour(juce::ComboBox::textColourId, Skin::colour(0xFFE6E6E6u));
         setColour(juce::ComboBox::outlineColourId, juce::Colours::transparentBlack);
-        setColour(juce::ComboBox::arrowColourId, juce::Colour(0xFFE6E6E6u));
-        setColour(juce::ComboBox::focusedOutlineColourId, juce::Colour(0xFF3E3E3Eu));
+        setColour(juce::ComboBox::arrowColourId, Skin::colour(0xFFE6E6E6u));
+        setColour(juce::ComboBox::focusedOutlineColourId, Skin::colour(0xFF3E3E3Eu));
     }
 
     juce::Font getComboBoxFont(juce::ComboBox&) override
@@ -199,9 +199,9 @@ public:
         juce::Path shape;
         shape.addRoundedRectangle(area, 9.0f);
 
-        g.setColour(juce::Colour(0xFF30302Eu));
+        g.setColour(Skin::colour(0xFF30302Eu));
         g.fillPath(shape);
-        g.setColour(juce::Colour(0xFF3E3E3Eu));
+        g.setColour(Skin::colour(0xFF3E3E3Eu));
         g.strokePath(shape, juce::PathStrokeType(1.0f));
     }
 
@@ -216,7 +216,7 @@ public:
 
         if (isSeparator)
         {
-            g.setColour(juce::Colour(0xFF3E3E3Eu));
+            g.setColour(Skin::colour(0xFF3E3E3Eu));
             g.fillRect(area.reduced(10, 0).withHeight(1).withY(area.getCentreY()));
             return;
         }
@@ -224,13 +224,13 @@ public:
         const auto itemArea = area.toFloat();
         if (isHighlighted && isActive)
         {
-            g.setColour(juce::Colour(0xFF171717u));
+            g.setColour(Skin::colour(0xFF171717u));
             g.fillRoundedRectangle(itemArea.reduced(2.0f, 1.0f), 5.0f);
         }
 
         if (isTicked)
         {
-            g.setColour(juce::Colour(0xFFEFEFEFu));
+            g.setColour(Skin::colour(0xFFEFEFEFu));
             g.fillEllipse(8.0f, itemArea.getCentreY() - 3.5f, 7.0f, 7.0f);
         }
 
@@ -268,11 +268,11 @@ public:
 
     void applyStyle()
     {
-        setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xFF30302Eu));
-        setColour(juce::ComboBox::textColourId, juce::Colour(0xFFE6E6E6u));
+        setColour(juce::ComboBox::backgroundColourId, Skin::colour(0xFF30302Eu));
+        setColour(juce::ComboBox::textColourId, Skin::colour(0xFFE6E6E6u));
         setColour(juce::ComboBox::outlineColourId, juce::Colours::transparentBlack);
-        setColour(juce::ComboBox::arrowColourId, juce::Colour(0xFFE6E6E6u));
-        setColour(juce::ComboBox::focusedOutlineColourId, juce::Colour(0xFF3E3E3Eu));
+        setColour(juce::ComboBox::arrowColourId, Skin::colour(0xFFE6E6E6u));
+        setColour(juce::ComboBox::focusedOutlineColourId, Skin::colour(0xFF3E3E3Eu));
         setLookAndFeel(&SidePanelComboLookAndFeel::getInstance());
     }
 
@@ -341,7 +341,7 @@ public:
         if (selected)
             g.fillEllipse(circle.reduced(3.0f));
 
-        g.setColour(selected ? juce::Colour(0xFFE6E6E6u)
+        g.setColour(selected ? Skin::colour(0xFFE6E6E6u)
                              : juce::Colour(highlighted ? 0xFF9B9B9Bu : 0xFF515151u));
         g.setFont(AppFont::getFont(15.0f));
         if (!isEnabled())
@@ -373,7 +373,20 @@ public:
 
     void paintButton(juce::Graphics& g, bool highlighted, bool down) override
     {
-        auto colour = juce::Colour(0xFF30302Eu);
+        if (Skin::starsClique())
+        {
+            const auto pill = getLocalBounds().toFloat().reduced(0.5f);
+            g.setColour(juce::Colours::white.withAlpha(down ? 0.20f : highlighted ? 0.16f : 0.12f));
+            g.fillRoundedRectangle(pill, pill.getHeight() * 0.5f);
+            g.setColour(juce::Colours::white.withAlpha(0.22f));
+            g.drawRoundedRectangle(pill, pill.getHeight() * 0.5f, 1.0f);
+            g.setColour(juce::Colours::white.withMultipliedAlpha(isEnabled() ? 1.0f : 0.5f));
+            g.setFont(AppFont::getFont(13.5f).boldened());
+            g.drawFittedText(getButtonText(), getLocalBounds().reduced(8, 0),
+                             juce::Justification::centred, 1);
+            return;
+        }
+        auto colour = Skin::colour(0xFF30302Eu);
         if (down)
             colour = colour.brighter(0.10f);
         else if (highlighted)
@@ -381,7 +394,7 @@ public:
 
         g.setColour(colour);
         g.fillRoundedRectangle(getLocalBounds().toFloat(), 5.0f);
-        g.setColour(juce::Colour(0xFFE6E6E6u)
+        g.setColour(Skin::colour(0xFFE6E6E6u)
                         .withMultipliedAlpha(isEnabled() ? 1.0f : 0.5f));
         g.setFont(AppFont::getFont(13.0f));
         g.drawFittedText(getButtonText(), getLocalBounds().reduced(3, 0),
@@ -413,7 +426,7 @@ public:
 
     void paintButton(juce::Graphics& g, bool highlighted, bool down) override
     {
-        auto colour = juce::Colour(0xFF30302Eu);
+        auto colour = Skin::colour(0xFF30302Eu);
         if (down)
             colour = colour.brighter(0.10f);
         else if (highlighted)
@@ -433,10 +446,10 @@ public:
         chevron.startNewSubPath(chevronX, chevronY);
         chevron.lineTo(chevronX + chevronWidth * 0.5f, chevronY + chevronHeight);
         chevron.lineTo(chevronX + chevronWidth, chevronY);
-        g.setColour(juce::Colour(0xFF9B9B9Bu).withMultipliedAlpha(alpha));
+        g.setColour(Skin::colour(0xFF9B9B9Bu).withMultipliedAlpha(alpha));
         g.strokePath(chevron, juce::PathStrokeType(1.2f));
 
-        g.setColour(juce::Colour(0xFFE6E6E6u).withMultipliedAlpha(alpha));
+        g.setColour(Skin::colour(0xFFE6E6E6u).withMultipliedAlpha(alpha));
         g.setFont(AppFont::getFont(13.0f));
         g.drawFittedText(getButtonText(),
                          getLocalBounds().withTrimmedLeft(9).withTrimmedRight(

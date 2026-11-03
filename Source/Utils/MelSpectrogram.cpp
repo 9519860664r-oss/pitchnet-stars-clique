@@ -129,13 +129,17 @@ void MelSpectrogram::createMelFilterbank()
 
 std::vector<std::vector<float>> MelSpectrogram::compute(const float* audio, int numSamples)
 {
-    // Add center padding for better frame alignment (matches librosa default)
-    // This ensures the first frame is centered at hopSize/2
-    int padLeft = nFft / 2;
-    int padRight = nFft / 2;
-    
-    // Calculate number of frames with proper padding
-    int paddedLength = numSamples + padLeft + padRight;
+    // Frame i is centred at i * hopSize + hopSize / 2, the middle of the
+    // hopSize samples the vocoder writes for it. This is the framing
+    // PC-NSF-HiFiGAN was trained with (reflect pad (nFft - hopSize) / 2, no
+    // centring), the same one FCPEPitchDetector uses. The old librosa-style
+    // centring (pad nFft / 2) put frame i at i * hopSize and made every
+    // resynthesised region play about 5 ms late, which softened note attacks.
+    const int padLeft = (nFft - hopSize) / 2;
+
+    // Frame count stays on the centred grid so every per-frame array (F0,
+    // masks, notes) keeps its length.
+    int paddedLength = numSamples + nFft;
     int numFrames = (paddedLength - nFft) / hopSize + 1;
     if (numFrames < 1)
     {
@@ -150,9 +154,7 @@ std::vector<std::vector<float>> MelSpectrogram::compute(const float* audio, int 
     
     for (int i = 0; i < numFrames; ++i)
     {
-        // Calculate sample position in original audio (accounting for padding)
-        int centerSample = i * hopSize;
-        int startSample = centerSample - padLeft;
+        int startSample = i * hopSize - padLeft;
         
         // Copy and window with proper boundary handling
         std::fill(frame.begin(), frame.end(), 0.0f);

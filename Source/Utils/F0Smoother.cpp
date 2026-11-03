@@ -189,31 +189,96 @@ std::vector<float> F0Smoother::removeOutliers(const std::vector<float>& f0,
     if (f0.empty())
         return f0;
     
-    std::vector<float> cleaned = f0;
-    
-    for (size_t i = 1; i < f0.size(); ++i)
+    // Octave errors first: they come in short runs the single-frame jump
+    // check below cannot see.
+    const std::vector<float> source = repairOctaveErrors(f0);
+    std::vector<float> cleaned = source;
+
+    for (size_t i = 1; i < source.size(); ++i)
     {
-        if (f0[i] > 0.0f && f0[i - 1] > 0.0f)
+        // Compare against the already-cleaned previous frame. Using the raw
+        // one made a good frame that follows an outlier look like a jump and
+        // get "repaired" towards the outlier.
+        if (source[i] > 0.0f && cleaned[i - 1] > 0.0f)
         {
-            float ratio = f0[i] / f0[i - 1];
+            float ratio = source[i] / cleaned[i - 1];
             if (ratio > maxJumpRatio || ratio < 1.0f / maxJumpRatio)
             {
                 // Outlier detected - use previous value or interpolate
-                if (i + 1 < f0.size() && f0[i + 1] > 0.0f)
+                if (i + 1 < source.size() && source[i + 1] > 0.0f)
                 {
                     // Interpolate between previous and next
-                    cleaned[i] = (f0[i - 1] + f0[i + 1]) / 2.0f;
+                    cleaned[i] = (cleaned[i - 1] + source[i + 1]) / 2.0f;
                 }
                 else
                 {
                     // Use previous value
-                    cleaned[i] = f0[i - 1];
+                    cleaned[i] = cleaned[i - 1];
                 }
             }
         }
     }
-    
+
     return cleaned;
+}
+
+std::vector<float> F0Smoother::repairOctaveErrors(const std::vector<float>& f0,
+                                                  int contextFrames,
+                                                  int maxRunFrames)
+{
+    // On rasp and vocal fry the detector often locks onto the subharmonic for
+    // a few frames: a note at ~100 Hz reads 54 Hz, and the vocoder then sings
+    // that stretch an octave down. Compare each voiced frame with the median
+    // of its voiced neighbourhood; a short run sitting an octave below (or
+    // above) it is folded back. A long run is a real octave leap and stays.
+    const int n = static_cast<int>(f0.size());
+    std::vector<float> repaired = f0;
+    if (n == 0)
+        return repaired;
+
+    constexpr float kToleranceSemitones = 3.0f;
+    std::vector<int> octave(static_cast<size_t>(n), 0); // -1 low, +1 high
+    std::vector<float> window;
+    for (int i = 0; i < n; ++i)
+    {
+        if (f0[static_cast<size_t>(i)] <= 0.0f)
+            continue;
+        window.clear();
+        for (int j = std::max(0, i - contextFrames);
+             j <= std::min(n - 1, i + contextFrames); ++j)
+            if (f0[static_cast<size_t>(j)] > 0.0f)
+                window.push_back(f0[static_cast<size_t>(j)]);
+        if (window.size() < 5)
+            continue;
+        auto mid = window.begin() + static_cast<std::ptrdiff_t>(window.size() / 2);
+        std::nth_element(window.begin(), mid, window.end());
+        const float reference = *mid;
+        const float semitones =
+            12.0f * std::log2(f0[static_cast<size_t>(i)] / reference);
+        if (std::abs(semitones + 12.0f) < kToleranceSemitones)
+            octave[static_cast<size_t>(i)] = -1;
+        else if (std::abs(semitones - 12.0f) < kToleranceSemitones)
+            octave[static_cast<size_t>(i)] = 1;
+    }
+
+    int i = 0;
+    while (i < n)
+    {
+        const int flag = octave[static_cast<size_t>(i)];
+        if (flag == 0)
+        {
+            ++i;
+            continue;
+        }
+        int end = i;
+        while (end < n && octave[static_cast<size_t>(end)] == flag)
+            ++end;
+        if (end - i <= maxRunFrames)
+            for (int k = i; k < end; ++k)
+                repaired[static_cast<size_t>(k)] *= flag < 0 ? 2.0f : 0.5f;
+        i = end;
+    }
+    return repaired;
 }
 
 std::vector<float> F0Smoother::smoothF0(const std::vector<float>& f0,

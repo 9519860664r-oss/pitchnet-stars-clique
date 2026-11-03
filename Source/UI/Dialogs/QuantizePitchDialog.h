@@ -14,12 +14,15 @@ namespace QuantizePitchDialog {
 void showPopup(juce::Component *parent,
                juce::Rectangle<int> anchorBounds,
                float initialPitchCenter, float initialPitchDrift,
-               bool initialSnapToScale,
-               std::function<void(float, bool, float, bool)> onPreview,
+               bool initialSnapToScale, bool initialIncludeManual,
+               std::function<void(float, bool, float, bool, bool)> onPreview,
                std::function<void(bool)> onComplete,
                std::function<void()> onRefreshPreview);
 
 // Cancels the active preview, if any, and removes its popup.
 void dismissPopup();
+
+// Test scripts: set the open popup's values and press OK.
+void setAndAccept(float pitchCenter, bool snapToScale);
 
 } // namespace QuantizePitchDialog

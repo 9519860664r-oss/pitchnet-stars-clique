@@ -1,4 +1,5 @@
 #pragma once
+#include <cmath>
 
 #include "../JuceHeader.h"
 #include <vector>
@@ -30,8 +31,20 @@ public:
     // Source frame range (position in original waveform, fixed after detection)
     int getSrcStartFrame() const { return srcStartFrame; }
     int getSrcEndFrame() const { return srcEndFrame; }
-    void setSrcStartFrame(int frame) { srcStartFrame = frame; }
-    void setSrcEndFrame(int frame) { srcEndFrame = frame; }
+    // A note cut from other source frames (a split, a join, a slice) finds
+    // its sibilants again and loses warp anchors measured on the old frames.
+    void setSrcStartFrame(int frame)
+    {
+        if (frame != srcStartFrame)
+            forgetSourceShape();
+        srcStartFrame = frame;
+    }
+    void setSrcEndFrame(int frame)
+    {
+        if (frame != srcEndFrame)
+            forgetSourceShape();
+        srcEndFrame = frame;
+    }
     int getSrcDurationFrames() const { return srcEndFrame - srcStartFrame; }
 
     // Destination frame range (position in output timeline, can be changed)
@@ -91,7 +104,90 @@ public:
         lastNonMacroMidiNote = note;
     }
     float getLastNonMacroMidiNote() const { return lastNonMacroMidiNote; }
+    // Doubles in unison: the note's own pitch while it follows its lead note.
+    bool hasUnisonSource() const { return unisonSourceMidi > -1000.0f; }
+    float getUnisonSourceMidi() const { return unisonSourceMidi; }
+    void setUnisonSourceMidi(float midi) { unisonSourceMidi = midi; }
+    void clearUnisonSource()
+    {
+        unisonSourceMidi = -10000.0f;
+        unisonSourceDelta.clear();
+        unisonSourceWasBaked = false;
+    }
+    // ...and its own pitch contour (the active delta), and whether that was
+    // an edited (baked) contour, so switching unison off restores both.
+    const std::vector<float>& getUnisonSourceDelta() const { return unisonSourceDelta; }
+    bool getUnisonSourceWasBaked() const { return unisonSourceWasBaked; }
+    void setUnisonSourceDelta(std::vector<float> delta, bool wasBaked)
+    {
+        unisonSourceDelta = std::move(delta);
+        unisonSourceWasBaked = wasBaked;
+    }
     void setLastNonMacroMidiNote(float note) { lastNonMacroMidiNote = note; }
+
+    // Sibilants: unpitched frames at the start / end of the note,
+    // counted in source frames; -1 until detected. They move with the note
+    // but keep their own sound and length. A head covering the whole note
+    // is a breath or a lone consonant.
+    bool hasSibilantInfo() const { return sibilantHead >= 0; }
+    int getSibilantHead() const { return sibilantHead; }
+    int getSibilantTail() const { return sibilantTail; }
+    bool getSibilantsSetByHand() const { return sibilantsByHand; }
+    void setSibilants(int head, int tail, bool byHand)
+    {
+        const int length = std::max(0, getSrcDurationFrames());
+        sibilantHead = juce::jlimit(0, length, head);
+        sibilantTail = juce::jlimit(0, length - sibilantHead, tail);
+        sibilantsByHand = byHand;
+    }
+    void clearSibilantInfo()
+    {
+        sibilantHead = sibilantTail = -1;
+        sibilantsByHand = false;
+    }
+    bool isAllSibilant() const
+    {
+        return getSrcDurationFrames() > 0 && sibilantHead >= getSrcDurationFrames();
+    }
+    // Sibilant Balance: -1 mutes the sibilants, 0 is as sung,
+    // +1 leaves only the sibilants (mutes the pitched part).
+    float getSibilantBalance() const { return sibilantBalance; }
+    void setSibilantBalance(float balance) { sibilantBalance = juce::jlimit(-1.0f, 1.0f, balance); }
+
+    // Warp anchors: moments inside the note pinned by timing alignment, as
+    // shares (0..1) of the source length and of the output length.
+    struct WarpAnchor
+    {
+        float src = 0.0f;
+        float dst = 0.0f;
+        bool operator==(const WarpAnchor &o) const { return src == o.src && dst == o.dst; }
+    };
+    const std::vector<WarpAnchor> &getWarpAnchors() const { return warpAnchors; }
+    void setWarpAnchors(std::vector<WarpAnchor> anchors) { warpAnchors = std::move(anchors); }
+
+    // Doubles aligned to their lead: the note's own timing before it
+    // followed, so switching Timing off puts it back.
+    bool hasAlignSource() const { return alignSourceStart >= 0; }
+    int getAlignSourceStart() const { return alignSourceStart; }
+    int getAlignSourceEnd() const { return alignSourceEnd; }
+    const std::vector<WarpAnchor> &getAlignSourceAnchors() const { return alignSourceAnchors; }
+    void setAlignSource(int start, int end, std::vector<WarpAnchor> anchors)
+    {
+        alignSourceStart = start;
+        alignSourceEnd = end;
+        alignSourceAnchors = std::move(anchors);
+    }
+    void clearAlignSource()
+    {
+        alignSourceStart = alignSourceEnd = -1;
+        alignSourceAnchors.clear();
+    }
+    // Correct Pitch values last applied to this note (remembered
+    // per note); negative: never corrected.
+    float getPitchCenterMacro() const { return pitchCenterMacro; }
+    void setPitchCenterMacro(float amount) { pitchCenterMacro = amount; }
+    // Pitch edited by hand (not by a macro) since analysis.
+    bool hasManualPitchEdit() const { return std::abs(lastNonMacroMidiNote - originalMidiNote) > 0.01f; }
     void setMidiNoteFromPitchCorrection(float note) { midiNote = note; }
     float getOriginalMidiNote() const { return originalMidiNote; }
     void setOriginalMidiNote(float note) { originalMidiNote = note; }
@@ -235,6 +331,25 @@ private:
 
     float midiNote = 60.0f;
     float lastNonMacroMidiNote = 60.0f;
+    float unisonSourceMidi = -10000.0f; // none
+    std::vector<float> unisonSourceDelta;
+    bool unisonSourceWasBaked = false;
+    int sibilantHead = -1; // source frames; -1: not detected yet
+    int sibilantTail = -1;
+    bool sibilantsByHand = false;
+    float sibilantBalance = 0.0f;
+    std::vector<WarpAnchor> warpAnchors;
+    int alignSourceStart = -1; // none
+    int alignSourceEnd = -1;
+    std::vector<WarpAnchor> alignSourceAnchors;
+
+    void forgetSourceShape()
+    {
+        if (!sibilantsByHand)
+            sibilantHead = sibilantTail = -1;
+        warpAnchors.clear();
+    }
+    float pitchCenterMacro = -1.0f;
     float originalMidiNote = 60.0f;
     float pitchOffset = 0.0f;
     float formantShift = 0.0f; // Semitones, independent of F0

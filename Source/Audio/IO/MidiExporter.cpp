@@ -36,8 +36,8 @@ juce::MidiFile MidiExporter::createMidiFile(const std::vector<Note>& notes,
 
     // Convert each note to MIDI events
     for (const auto& note : notes) {
-        // Skip rest notes
-        if (note.isRest())
+        // Skip rests and deleted (silenced) notes
+        if (note.isRest() || note.getVolumeDb() <= -95.5f)
             continue;
 
         // Get adjusted pitch (includes user edits: midiNote + pitchOffset)
@@ -107,4 +107,41 @@ int MidiExporter::secondsToTicks(double seconds, float tempo, int ppq) {
 int MidiExporter::clampMidiNote(float midiNote) {
     int note = static_cast<int>(midiNote);
     return juce::jlimit(0, 127, note);
+}
+
+juce::MidiFile MidiExporter::createMultiTrackMidiFile(
+    const std::vector<MidiExportTrack>& tracks, const ExportOptions& options) {
+    juce::MidiFile midiFile;
+    midiFile.setTicksPerQuarterNote(options.ticksPerQuarterNote);
+    for (size_t i = 0; i < tracks.size(); ++i) {
+        auto trackOptions = options;
+        trackOptions.channel = channelForTrack(static_cast<int>(i));
+        trackOptions.includeTempoTrack = options.includeTempoTrack && i == 0;
+        auto single = createMidiFile(tracks[i].notes, trackOptions);
+        juce::MidiMessageSequence sequence;
+        if (tracks[i].name.isNotEmpty()) {
+            auto name = juce::MidiMessage::textMetaEvent(3, tracks[i].name);
+            name.setTimeStamp(0);
+            sequence.addEvent(name);
+        }
+        if (const auto* events = single.getTrack(0))
+            sequence.addSequence(*events, 0.0);
+        sequence.sort();
+        sequence.updateMatchedPairs();
+        midiFile.addTrack(sequence);
+    }
+    return midiFile;
+}
+
+bool MidiExporter::exportTracksToFile(const std::vector<MidiExportTrack>& tracks,
+                                      const juce::File& file,
+                                      const ExportOptions& options) {
+    if (tracks.empty())
+        return false;
+    auto midiFile = createMultiTrackMidiFile(tracks, options);
+    file.deleteFile();
+    juce::FileOutputStream outputStream(file);
+    if (!outputStream.openedOk())
+        return false;
+    return midiFile.writeTo(outputStream, 1);
 }

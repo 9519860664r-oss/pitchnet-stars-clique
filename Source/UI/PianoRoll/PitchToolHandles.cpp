@@ -1,4 +1,5 @@
 #include "PitchToolHandles.h"
+#include "../../Utils/UI/Skin.h"
 #include "BinaryData.h"
 
 #include <algorithm>
@@ -96,8 +97,8 @@ void PitchToolHandles::draw(juce::Graphics& g) const {
     const auto& handle = handles[i];
 
     const bool hovered = i == hoveredHandleIndex;
-    g.setColour(hovered ? juce::Colour(0xFF3B3B3Au)
-                        : juce::Colour(0xFF2E2E2Du));
+    g.setColour(hovered ? Skin::colour(0xFF3B3B3Au)
+                        : Skin::colour(0xFF2E2E2Du));
 
     const auto bounds = handle.bounds;
     g.fillRect(bounds);

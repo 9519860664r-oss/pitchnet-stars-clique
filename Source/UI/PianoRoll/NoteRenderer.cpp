@@ -8,6 +8,10 @@
 #include "VisualWaveformEnvelope.h"
 #include "../Components/AppFont.h"
 #include "../../Utils/Constants.h"
+#include "../../Utils/NoteGainCurve.h"
+#include "../../Utils/NoteTimeMap.h"
+#include "../../Utils/SibilantDetector.h"
+#include "../../Utils/UI/ViewPrefs.h"
 #include "../../Utils/ScaleUtils.h"
 #include "../../Utils/UI/Theme.h"
 
@@ -47,7 +51,22 @@ juce::Colour interpolateLayeredColour(juce::Colour first,
   return third.interpolatedWith(fourth, amount * 3.0f - 2.0f);
 }
 
+NoteGradientColours getNoteGradientColoursForAmount(float amount);
+
 NoteGradientColours getNoteGradientColours(float midi, int pitchReferenceHz)
+{
+  return getNoteGradientColoursForAmount(getPitchCenterAmount(midi, pitchReferenceHz));
+}
+
+// With a key: blue exactly on a note of the key, through violet and pink to
+// red half a semitone or more away from it (a note outside the key is red).
+NoteGradientColours getNoteGradientColoursInKey(float midi, const ScaleUtils::Key &key,
+                                                int pitchReferenceHz)
+{
+  return getNoteGradientColoursForAmount(ScaleUtils::keyMissAmount(midi, key, pitchReferenceHz));
+}
+
+NoteGradientColours getNoteGradientColoursForAmount(float amount)
 {
   static const juce::Colour inTuneCentre(0xFF1983E0u);
   static const juce::Colour inTuneSide(0xFF0021E2u);
@@ -57,8 +76,6 @@ NoteGradientColours getNoteGradientColours(float midi, int pitchReferenceHz)
   static const juce::Colour secondLayerSide(0xFFF624B7u);
   static const juce::Colour outOfTuneCentre(0xFFF95D5Du);
   static const juce::Colour outOfTuneSide(0xFFFF0000u);
-
-  const float amount = getPitchCenterAmount(midi, pitchReferenceHz);
 
   return {
       interpolateLayeredColour(inTuneCentre, firstLayerCentre,
@@ -103,6 +120,10 @@ void NoteRenderer::draw(juce::Graphics &g, Pass pass, bool splitModeActive,
 {
   if (!project || !coordMapper)
     return;
+  // Notes that came in some other way (a restored or pasted project) find
+  // their sibilants before they are drawn; cheap once they have them.
+  if (pass == Pass::Body)
+    SibilantDetector::ensure(*project);
 
   const bool drawBodies = pass == Pass::Body || pass == Pass::HoveredBody;
   const bool drawOverlays = pass == Pass::Overlay;
@@ -316,10 +337,15 @@ void NoteRenderer::draw(juce::Graphics &g, Pass pass, bool splitModeActive,
     {
       const NoteGradientColours noteColours =
           greyscale
-              ? NoteGradientColours{juce::Colour(0xFFCCCCCCu),
-                                    juce::Colour(0xFF3A3A3Au)}
-              : getNoteGradientColours(note.getAdjustedMidiNote(),
-                                       pitchReferenceHz);
+              ? NoteGradientColours{Skin::colour(0xFFCCCCCCu),
+                                    Skin::colour(0xFF3A3A3Au)}
+              : [&] {
+                  if (keyForNote)
+                    if (const auto key = keyForNote(note))
+                      return getNoteGradientColoursInKey(note.getAdjustedMidiNote(), *key,
+                                                         pitchReferenceHz);
+                  return getNoteGradientColours(note.getAdjustedMidiNote(), pitchReferenceHz);
+                }();
       juce::Rectangle<float> noteVisualBounds(x, y, renderedWidth, h);
       // The shape that was filled, for the pinned-track outline.
       juce::Path bodyShape;
@@ -329,6 +355,37 @@ void NoteRenderer::draw(juce::Graphics &g, Pass pass, bool splitModeActive,
       {
         noFill.emplace(g);
         g.reduceClipRegion(juce::Rectangle<int>());
+      }
+      else if (Skin::starsClique())
+      {
+        // A soft shadow under the note, as if it floats over the grid.
+        g.setColour(juce::Colour(0x1E0A0418u));
+        g.fillRoundedRectangle(x + 2.0f, y + h * 0.35f, juce::jmax(2.0f, renderedWidth - 4.0f),
+                               h * 0.8f, h * 0.4f);
+      }
+
+      // A muted note (Note Off, Delete) keeps only its outline,
+      // so it can still be seen, selected and switched back on.
+      if (note.getVolumeDb() <= NoteGainCurve::kDeletedNoteDb + 0.5f)
+      {
+        noFill.reset();
+        if (fillBodies)
+        {
+          juce::Path outline;
+          outline.addRoundedRectangle(x, y + 1.0f, renderedWidth, std::max(2.0f, h - 2.0f), 2.0f);
+          juce::Path dashed;
+          const float dashes[] = {3.0f, 2.0f};
+          juce::PathStrokeType(1.2f).createDashedStroke(dashed, outline, dashes, 2);
+          g.setColour(noteColours.centre.withAlpha(0.85f));
+          g.fillPath(dashed);
+          if (showSelectionStatus && note.isSelected())
+          {
+            g.setColour(juce::Colours::white.withAlpha(0.72f));
+            g.drawRoundedRectangle(juce::Rectangle<float>(x, y, renderedWidth, h).expanded(1.0f),
+                                   2.0f, 1.5f);
+          }
+        }
+        continue;
       }
 
       const float *samples = globalSamples;
@@ -539,6 +596,32 @@ void NoteRenderer::draw(juce::Graphics &g, Pass pass, bool splitModeActive,
         bodyShape.addRoundedRectangle(x, y, renderedWidth, h, 2.0f);
       }
 
+      // Sibilants ("Show Sibilants"): the unpitched start / end of
+      // the note, hatched. They move with the note but keep their sound.
+      if (fillBodies && !noFill.has_value() && !isPreviewPlaybackNote &&
+          !bodyShape.isEmpty() && ViewPrefs::showSibilants() &&
+          note.hasSibilantInfo() &&
+          (note.getSibilantHead() > 0 || note.getSibilantTail() > 0))
+      {
+        const auto bounds = NoteTimeMap::sibilantBounds(note);
+        const float startFrame = note.getVisualStartFrame();
+        const float span = std::max(0.001f, note.getVisualEndFrame() - startFrame);
+        auto toX = [&](double frame) {
+          return x + static_cast<float>((frame - startFrame) / span) * renderedWidth;
+        };
+        juce::Graphics::ScopedSaveState hatchState(g);
+        g.reduceClipRegion(bodyShape);
+        g.setColour(noteColours.centre.darker(0.6f).withAlpha(0.85f));
+        auto hatch = [&](float left, float right) {
+          left = std::max(left, x);
+          right = std::min(right, x + renderedWidth);
+          for (float lineX = left + 1.0f; lineX < right; lineX += 3.0f)
+            g.fillRect(lineX, y - h * 2.0f, 1.0f, h * 5.0f);
+        };
+        hatch(x, toX(bounds.headEnd));
+        hatch(toX(bounds.tailStart), x + renderedWidth);
+      }
+
       noFill.reset();
       if (outlineColour.has_value() && !bodyShape.isEmpty())
       {
@@ -632,9 +715,9 @@ void NoteRenderer::draw(juce::Graphics &g, Pass pass, bool splitModeActive,
       const float labelY =
           shadowBounds.toFloat().getY() - labelHeight + 5.0f;
 
-      g.setColour(juce::Colour(0xFF2E2E2Du));
+      g.setColour(Skin::colour(0xFF2E2E2Du));
       g.fillRoundedRectangle(labelX, labelY, labelWidth, labelHeight, 4.0f);
-      g.setColour(juce::Colour(0xFFEFEFEFu));
+      g.setColour(Skin::colour(0xFFEFEFEFu));
       g.setFont(labelFont);
       g.drawFittedText(label, static_cast<int>(labelX),
                        static_cast<int>(labelY),
@@ -695,7 +778,7 @@ void NoteRenderer::draw(juce::Graphics &g, Pass pass, bool splitModeActive,
 
       g.setColour(juce::Colour(0xE6282828u));
       g.fillRoundedRectangle(labelX, labelY, labelWidth, labelHeight, 4.0f);
-      g.setColour(juce::Colour(0xFFF2F2F2u));
+      g.setColour(Skin::colour(0xFFF2F2F2u));
       g.setFont(AppFont::getFont(11.0f));
       g.drawFittedText(label, static_cast<int>(labelX),
                        static_cast<int>(labelY),
@@ -739,7 +822,7 @@ void NoteRenderer::draw(juce::Graphics &g, Pass pass, bool splitModeActive,
       return -1;
     };
 
-    g.setColour(juce::Colour(0xFF9A9A9Au)); // Pitch-grid note-name colour
+    g.setColour(Skin::colour(0xFF9A9A9Au)); // Pitch-grid note-name colour
     for (size_t i = 0; i + 1 < timelineNotes.size(); ++i)
     {
       const auto &left = *timelineNotes[i];
@@ -807,7 +890,7 @@ void NoteRenderer::draw(juce::Graphics &g, Pass pass, bool splitModeActive,
               first.getEndFrame() + second.getStartFrame()) * pixelsPerSecond;
           const float firstY = coordMapper->midiToY(first.getAdjustedMidiNote());
           const float secondY = coordMapper->midiToY(second.getAdjustedMidiNote());
-          g.setColour(juce::Colour(0xFF9A9A9Au));
+          g.setColour(Skin::colour(0xFF9A9A9Au));
           g.drawLine(adjacentBoundaryX, std::min(firstY, secondY),
                      adjacentBoundaryX,
                      std::max(firstY, secondY) + pixelsPerSemitone, 1.5f);
@@ -841,7 +924,7 @@ void NoteRenderer::draw(juce::Graphics &g, Pass pass, bool splitModeActive,
       const float noteY = coordMapper->midiToY(guideNote->getAdjustedMidiNote());
       const float noteH = pixelsPerSemitone;
 
-      g.setColour(juce::Colour(0xFF9A9A9Au));
+      g.setColour(Skin::colour(0xFF9A9A9Au));
       g.drawLine(guideX, noteY, guideX, noteY + noteH, 1.5f);
     }
   }

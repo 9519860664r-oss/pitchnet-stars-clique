@@ -24,9 +24,13 @@ public:
   juce::String getDevice() const { return device; }
   void setDevice(const juce::String &d)
   {
+    if (d != device)
+      deviceChosenByUser = true;
     device = d;
     hasStoredDeviceSetting = true;
   }
+  /** The device used until the user picks one. */
+  static juce::String defaultDevice();
   bool hasStoredDevice() const { return hasStoredDeviceSetting; }
   int getThreads() const { return threads; }
   void setThreads(int t) { threads = t; }
@@ -138,7 +142,8 @@ private:
   Vocoder *vocoder = nullptr;
 
   // Settings
-  juce::String device = "CPU";
+  juce::String device = defaultDevice();
+  bool deviceChosenByUser = false; // picked in Settings, not just saved
   bool hasStoredDeviceSetting = false;
   int threads = 0;
   PitchDetectorType pitchDetectorType = PitchDetectorType::FCPE;

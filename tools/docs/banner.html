@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PitchNet Stars Clique banner</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+  html, body { width: 1600px; height: 560px; overflow: hidden; }
+  .stage { position: relative; width: 1600px; height: 560px; overflow: hidden; }
+  .copy { position: absolute; left: 90px; top: 110px; width: 640px; }
+  .copy .logo { width: 380px; }
+  .tag { margin-top: 26px; font-size: 25px; font-weight: 600; letter-spacing: 0.2px; color: var(--lilac); }
+  .lead { margin-top: 16px; font-size: 19px; line-height: 1.55; color: var(--muted); }
+  .chips { margin-top: 30px; display: flex; gap: 10px; flex-wrap: wrap; font-size: 15px; }
+  .credit { margin-top: 22px; font-size: 14px; color: var(--dim); }
+  .shot {
+    position: absolute; right: -40px; top: 54px; width: 860px;
+    border-radius: 22px; overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.14);
+    box-shadow: 0 30px 80px rgba(10,0,30,0.65), 0 0 60px rgba(192,132,252,0.12);
+    transform: perspective(1600px) rotateY(-9deg) rotateX(2deg);
+  }
+  .shot img { display: block; width: 100%; }
+</style>
+</head>
+<body class="glow-bg">
+<div class="stage">
+  <div class="copy">
+    <div class="logo" role="img" aria-label="PitchNet"></div>
+    <div class="tag">Stars Clique Edition</div>
+    <div class="lead">A neural vocal pitch editor for FL&nbsp;Studio, REAPER and every VST3 host. Edit several tracks at once, tune backing vocals to the lead, record straight from the DAW.</div>
+    <div class="chips"><span class="pill">VST3 · Windows</span><span class="pill">Free &amp; open source</span><span class="pill">AGPLv3</span></div>
+    <div class="credit">Based on PitchNet by Session Loops &amp; contributors · modified by Goth Angel</div>
+  </div>
+  <div class="shot"><img src="img:stars-clique-main.png" alt=""></div>
+</div>
+</body>
+</html>

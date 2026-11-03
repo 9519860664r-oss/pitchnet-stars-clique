@@ -21,7 +21,7 @@ class PitchNetAudioModification;
 /**
  * PitchNet Audio Processor
  *
- * Supports two modes like Melodyne:
+ * Supports two modes:
  * 1. ARA Mode: Direct audio access via ARA protocol (Studio One, Cubase, Logic,
  * etc.)
  * 2. Non-ARA Mode: Auto-capture and process (FL Studio, Ableton, etc.)
@@ -55,6 +55,24 @@ public:
 #endif
 
   juce::AudioProcessorEditor *createEditor() override;
+  void updateTrackProperties(const TrackProperties &properties) override;
+  /** This instance's key in InstanceRegistry. */
+  std::uint64_t getInstanceRegistryId() const { return instanceRegistryId; }
+  /** Lead / doubles group of this track (saved with the host project). */
+  void setDoubleGroup(const juce::String &groupId, int role);
+  /** On the lead: the group's unison switch and strength (0..1). */
+  void setUnison(bool on, float strength);
+  /** On the lead: the group's Timing switch and strength (0..1). */
+  void setTiming(bool on, float strength);
+  /** With no window open: let `edit` change the project this track plays
+      (in place, without an extra copy) and render it when it returns true. */
+  void editAndRenderHeadless(const std::function<bool(Project &)> &edit);
+  /** The full project this instance plays while no window is bound to it
+      (another window may then open it for editing, Ctrl+Edit);
+      nullptr while a window shows it or before anything was recorded. */
+  const Project *getHeadlessProject() const {
+    return mainComponent == nullptr ? araAnalysisProjectSnapshot.get() : nullptr;
+  }
   bool hasEditor() const override { return true; }
 
   const juce::String getName() const override;
@@ -262,6 +280,14 @@ public:
   // renderer's preview. These are no-ops in an ARA host, where processNonARAMode
   // never runs and the ARA preview path handles auditioning instead.
   void startPluginPreview(double startSeconds, double endSeconds);
+  /** The other tracks to hear under the next local preview, already mixed,
+      at the host rate, starting at the preview start (nullptr: none). */
+  /** Replace Ranges (seconds on the host timeline): outside them the DAW
+      track plays through unchanged. Empty: the plug-in plays everywhere. */
+  void setReplaceRanges(const std::vector<std::pair<double, double>> &ranges);
+  void setPreviewMixBed(std::shared_ptr<const juce::AudioBuffer<float>> bed) {
+    std::atomic_store(&previewMixBed, std::move(bed));
+  }
   void stopPluginPreview();
   void startPluginAudition(const juce::AudioBuffer<float> &buffer,
                            double sampleRate);
@@ -358,8 +384,8 @@ private:
   // Cached parameter values for change detection (audio thread only)
   float cachedPitchOffset = 0.0f;
   float cachedFormantShift = 0.0f;
-  std::shared_ptr<MacroParameters> macroParameters =
-      std::make_shared<MacroParameters>();
+  // Shared by every instance: one key, A4, custom scale for all tracks.
+  std::shared_ptr<MacroParameters> macroParameters = sharedMacroParameters();
 
   // Debounced parameter sync: audio thread -> message thread -> project
   struct ParamSyncState {
@@ -377,6 +403,8 @@ private:
   PitchNetDocumentController *araDocumentController = nullptr;
 #endif
   IMainView *mainComponent = nullptr;
+  std::uint64_t instanceRegistryId = 0;
+  void restoreDoubleGroupFromState();
   // Hosts commonly destroy the editor when its window closes while retaining
   // the processor instance. Keep the most recent editor dimensions here so a
   // subsequently created editor can resume at the same size.
@@ -398,6 +426,10 @@ private:
   bool araAnalysisReady = false;
   double araAnalysisTimelineOffsetSeconds = 0.0;
   std::unique_ptr<Project> araAnalysisProjectSnapshot;
+  // The headless render backend holds the snapshot plus only edits made
+  // through editAndRenderHeadless (so it can be edited again in place).
+  bool headlessBackendCurrent = false;
+  static std::unique_ptr<EditorController> makeRenderController();
   // Built on demand from araAnalysisProjectSnapshot. Serialising a
   // multi-minute take to JSON text costs tens of MB of string work, and
   // nothing in non-ARA plug-in mode ever reads it, so only pay for it where it
@@ -498,6 +530,13 @@ private:
   };
   PluginPreviewState pluginPreview;
   juce::int64 pluginPreviewCursor = 0;
+  // Other tracks mixed under a local preview (Editing Mix Fader),
+  // at host rate, starting at the preview start. Swapped atomically.
+  std::shared_ptr<const juce::AudioBuffer<float>> previewMixBed;
+  std::shared_ptr<const std::vector<std::pair<double, double>>> replaceMask;
+  void applyReplaceMask(juce::AudioBuffer<float> &buffer,
+                        const juce::AudioBuffer<float> &dry,
+                        const juce::AudioPlayHead::PositionInfo &pos) const;
   std::shared_ptr<juce::AudioBuffer<float>> pluginAuditionBuffer;
   // Audio-thread-only handoff state for crossfading new audition renders.
   std::shared_ptr<juce::AudioBuffer<float>> activePluginAuditionBuffer;

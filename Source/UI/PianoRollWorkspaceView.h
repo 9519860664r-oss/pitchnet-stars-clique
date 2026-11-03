@@ -5,6 +5,7 @@
 #include "../Utils/Localization.h"
 #include "Buttons.h"
 #include "PianoRollComponent.h"
+#include "NoteInspector.h"
 #include "PianoRoll/OverviewPanel.h"
 #include "Workspace/RoundedCard.h"
 #include <functional>
@@ -16,11 +17,22 @@ public:
 
   void paint(juce::Graphics &g) override;
   void resized() override;
+  // A skin change re-lays out (Stars Clique adds room around the editor).
+  void lookAndFeelChanged() override { resized(); repaint(); }
   void timerCallback() override;
 
   void setProject(Project *project);
   void dismissPitchCenterPopup();
   void showPitchCenterPopup();
+  // Canvas-menu macros: 0 Quantize Time, 1 Align to Reference, 2 Leveling.
+  void showMacro(int which);
+  void showQuantizeTimePopup();
+  void showAlignPopup();
+  void showLevelingPopup();
+  void showRandomDeviationsPopup();
+  void commitTiming(Project &project, const std::vector<struct NoteTimingState> &before,
+                    const std::vector<struct NoteTimingState> &after,
+                    const juce::String &name);
   std::function<std::vector<TrackPitchMacroTarget>()> getTrackPitchMacroTargets;
   void refreshOverview();
   void repaintOverviewViewport();
@@ -61,6 +73,7 @@ private:
   void updateOverviewAnimation();
   PianoRollComponent &pianoRoll;
   OverviewPanel overviewPanel;
+  NoteInspector noteInspector{pianoRoll};
 
   RoundedCard pianoCard;
   RoundedCard overviewCard;
@@ -70,6 +83,7 @@ private:
   bool trackViewModeAvailable = false;
   bool overviewVisible = false;
   bool pitchCenterSnapToScale = false;
+  bool pitchCenterIncludeManual = false;
 
   FloatingZoomSliderLookAndFeel floatingZoomSliderLookAndFeel;
   FloatingControlBackground zoomXBackground;

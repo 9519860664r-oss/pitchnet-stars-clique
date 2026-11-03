@@ -49,6 +49,17 @@ public:
      */
     static std::vector<float> removeOutliers(const std::vector<float>& f0,
                                               float maxJumpRatio = 1.5f);
+
+    /**
+     * Fold short runs of octave errors back onto the surrounding pitch.
+     * Rasp and fry make the detector report the subharmonic for a few frames.
+     * @param f0 Input F0 values (0 = unvoiced)
+     * @param contextFrames Neighbourhood on each side for the reference median
+     * @param maxRunFrames Longest run treated as an error, not an octave leap
+     */
+    static std::vector<float> repairOctaveErrors(const std::vector<float>& f0,
+                                                 int contextFrames = 12,
+                                                 int maxRunFrames = 8);
     
     /**
      * Comprehensive smoothing pipeline combining all techniques.

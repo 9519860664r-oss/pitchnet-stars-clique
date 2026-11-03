@@ -20,10 +20,13 @@ constexpr float FREQ_A4 = 440.0f;
 // UI constants
 constexpr float DEFAULT_PIXELS_PER_SECOND = 100.0f;
 constexpr float DEFAULT_PIXELS_PER_SEMITONE = 45.0f;
-constexpr float MIN_PIXELS_PER_SECOND = 20.0f;
-constexpr float MAX_PIXELS_PER_SECOND = 500.0f;
-constexpr float MIN_PIXELS_PER_SEMITONE = 8.0f;
-constexpr float MAX_PIXELS_PER_SEMITONE = 120.0f;
+// Zoom range: far out (whole songs) to far in (inside one note).
+constexpr float MIN_PIXELS_PER_SECOND = 2.0f;
+constexpr float MAX_PIXELS_PER_SECOND = 4000.0f;
+constexpr float MIN_PIXELS_PER_SEMITONE = 3.0f;
+constexpr float MAX_PIXELS_PER_SEMITONE = 320.0f;
+// Zooming out may go past "the whole timeline fits": down to this share of it.
+constexpr float ZOOM_OUT_BEYOND_FIT = 0.25f;
 constexpr float DEFAULT_EMPTY_PROJECT_DURATION_SECONDS = 30.0f;
 
 // UI colors moved to Source/Utils/UI/Theme.h

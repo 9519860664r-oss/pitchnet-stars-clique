@@ -37,6 +37,7 @@ void NonAraCaptureController::resetToWaiting() {
   expectedHostPosition.reset();
   analysisPending.store(false);
   shouldFinalizeFlag.store(false);
+  punchOutRequested.store(false);
   state.store(State::WaitingForAudio);
 }
 
@@ -64,6 +65,11 @@ void NonAraCaptureController::processBlock(
   if (currentState != State::Capturing)
     return;
 
+  if (punchOutRequested.load()) {
+    shouldFinalizeFlag.store(true);
+    return;
+  }
+
   if (hostIsPlaying) {
     const juce::SpinLock::ScopedLockType lock(bufferLock);
     // A bounded take remains armed and passes audio through until transport
@@ -74,7 +80,11 @@ void NonAraCaptureController::processBlock(
     if (hostSamplePosition && expectedHostPosition) {
       const auto gap = *hostSamplePosition - *expectedHostPosition;
       if (gap < -1) {
+        // The host jumped back: FL reached the end of its loop / selection.
+        // The take ends there and is analysed straight away, as when the
+        // transport stops.
         holdReason.store(HoldReason::TimelineJump);
+        shouldFinalizeFlag.store(true);
         return;
       }
       if (gap > 1) {
@@ -175,6 +185,7 @@ void NonAraCaptureController::onAnalysisDispatched() {
   analysisPending.store(false);
   shouldFinalizeFlag.store(false);
   holdReason.store(HoldReason::None);
+  punchOutRequested.store(false);
   state.store(State::Idle);
 }
 
@@ -190,5 +201,6 @@ void NonAraCaptureController::stop() {
   }
   analysisPending.store(false);
   shouldFinalizeFlag.store(false);
+  punchOutRequested.store(false);
   state.store(State::Idle);
 }

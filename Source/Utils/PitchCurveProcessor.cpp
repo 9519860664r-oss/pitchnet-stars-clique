@@ -1,6 +1,8 @@
 #include "PitchCurveProcessor.h"
 #include "BasePitchCurve.h"
 #include "CurveResampler.h"
+#include "NoteTimeMap.h"
+#include "SibilantDetector.h"
 #include "PitchToolOperations.h"
 #include "../Utils/Constants.h"
 #include <algorithm>
@@ -192,6 +194,7 @@ namespace PitchCurveProcessor
     void rebuildCurvesFromSource(Project& project,
                                  const std::vector<float>& sourcePitchHz)
     {
+        SibilantDetector::ensure(project); // fresh analysis: find the sibilants
         auto& audioData = project.getAudioData();
         const int totalFrames = static_cast<int>(sourcePitchHz.size());
         ensureSizes(audioData, totalFrames);
@@ -262,7 +265,7 @@ namespace PitchCurveProcessor
     {
         const int frames = note.getEndFrame() - note.getStartFrame();
         if (frames <= 0 || sourceDeltaFor(note).empty()) return {};
-        auto source = CurveResampler::resampleLinear(sourceDeltaFor(note), frames);
+        auto source = NoteTimeMap::toOutput(sourceDeltaFor(note), note, frames);
         const auto context = buildAdjacentContext(project.getNotes(), note);
         auto zero = PitchToolOperations::applyAllTransformations(source,
             note.getTiltLeft(), note.getTiltRight(), note.getVibrato(),
@@ -277,6 +280,9 @@ namespace PitchCurveProcessor
 
     void rebuildBaseFromNotes(Project& project)
     {
+        // New notes (an analysis, a split, an older project) find their
+        // sibilants here, before anything renders or draws them.
+        SibilantDetector::ensure(project);
         auto& audioData = project.getAudioData();
         const int totalFrames = audioData.getNumFrames();
         ensureSizes(audioData, totalFrames);
@@ -318,9 +324,10 @@ namespace PitchCurveProcessor
             // Resample stored delta to match the current output frame count.
             std::vector<float> resampledBuf;
             const std::vector<float>* sourceDataPtr = &rawSourceData;
-            if (static_cast<int>(rawSourceData.size()) != numFrames)
+            if (static_cast<int>(rawSourceData.size()) != numFrames ||
+                NoteTimeMap::isUneven(NoteTimeMap::knots(note)))
             {
-                resampledBuf = CurveResampler::resampleLinear(rawSourceData, numFrames);
+                resampledBuf = NoteTimeMap::toOutput(rawSourceData, note, numFrames);
                 sourceDataPtr = &resampledBuf;
             }
             const auto& sourceData = *sourceDataPtr;
@@ -417,9 +424,10 @@ namespace PitchCurveProcessor
 
             std::vector<float> resampledBuf;
             const std::vector<float>* sourceDataPtr = &rawSourceData;
-            if (static_cast<int>(rawSourceData.size()) != numFrames)
+            if (static_cast<int>(rawSourceData.size()) != numFrames ||
+                NoteTimeMap::isUneven(NoteTimeMap::knots(*note)))
             {
-                resampledBuf = CurveResampler::resampleLinear(rawSourceData, numFrames);
+                resampledBuf = NoteTimeMap::toOutput(rawSourceData, *note, numFrames);
                 sourceDataPtr = &resampledBuf;
             }
             const auto& sourceData = *sourceDataPtr;
@@ -498,9 +506,10 @@ namespace PitchCurveProcessor
             // Resample stored delta to match the current output frame count.
             std::vector<float> resampledBuf;
             const std::vector<float>* sourceDataPtr = &rawSourceData;
-            if (static_cast<int>(rawSourceData.size()) != numFrames)
+            if (static_cast<int>(rawSourceData.size()) != numFrames ||
+                NoteTimeMap::isUneven(NoteTimeMap::knots(*note)))
             {
-                resampledBuf = CurveResampler::resampleLinear(rawSourceData, numFrames);
+                resampledBuf = NoteTimeMap::toOutput(rawSourceData, *note, numFrames);
                 sourceDataPtr = &resampledBuf;
             }
             const auto& sourceData = *sourceDataPtr;

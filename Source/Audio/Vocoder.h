@@ -107,7 +107,8 @@ private:
     std::shared_ptr<std::atomic<bool>> cancelFlag;
   };
 
-  bool loaded = false;
+  std::atomic<bool> loaded{false}; // read by renders while a load may run in the background
+  std::mutex loadMutex;             // one load at a time
   int sampleRate = 44100;
   int hopSize = 512;
   int numMels = 128;

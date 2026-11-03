@@ -1,0 +1,55 @@
+/* Stars Clique look for the docs: deep violet, soft glass, lavender accents.
+   Fonts and images are inlined by build.py. */
+@font-face { font-family: "Montserrat"; font-weight: 400; src: url("font:Montserrat-Regular.ttf"); }
+@font-face { font-family: "Montserrat"; font-weight: 500 900; src: url("font:Montserrat-Medium.ttf"); }
+
+:root {
+  --bg: #0D0719;
+  --bg-2: #160C2B;
+  --glass: rgba(255,255,255,0.055);
+  --glass-edge: rgba(255,255,255,0.10);
+  --text: #F1E6FF;
+  --muted: #B9A6DC;
+  --dim: #8E7DB0;
+  --lavender: #C084FC;
+  --lilac: #D8B4FE;
+  --pink: #FF6B9A;
+  --blue: #67D4FF;
+  --amber: #F4B860;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: "Montserrat", "Segoe UI", sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.glow-bg {
+  background:
+    radial-gradient(700px 420px at 12% 6%, rgba(168,85,247,0.22) 0%, transparent 70%),
+    radial-gradient(800px 500px at 90% 14%, rgba(236,72,153,0.10) 0%, transparent 70%),
+    radial-gradient(900px 600px at 55% 112%, rgba(79,70,229,0.18) 0%, transparent 65%),
+    var(--bg);
+}
+
+.logo {
+  display: inline-block;
+  background: linear-gradient(90deg, #F5EDFF 0%, #D8B4FE 55%, #A970F5 100%);
+  -webkit-mask: url("img:logo.png") no-repeat left center / contain;
+  mask: url("img:logo.png") no-repeat left center / contain;
+  aspect-ratio: 220 / 43;
+}
+
+.pill {
+  display: inline-block;
+  padding: 0.35em 0.95em;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: var(--lilac);
+  font-weight: 600;
+}

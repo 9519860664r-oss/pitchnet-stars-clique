@@ -1,4 +1,5 @@
 #include "Project.h"
+#include "../Utils/TimingAligner.h"
 #include "../Utils/Constants.h"
 #include "../Utils/PitchCurveProcessor.h"
 #include <algorithm>
@@ -43,8 +44,61 @@ namespace
 }
 
 Project::Project()
-    : macroParameters(std::make_shared<MacroParameters>())
+    : macroParameters(sharedMacroParameters()) // one key for every track
 {
+}
+
+std::shared_ptr<Project> Project::makeLightCopy(bool keepWaveform) const
+{
+    // Every member but the heavy audio. Keep in step with the class.
+    auto copy = std::make_shared<Project>();
+    copy->uiWidth = uiWidth;
+    copy->uiHeight = uiHeight;
+    copy->thumbnailVisible = thumbnailVisible;
+    copy->name = name;
+    copy->filePath = filePath;
+    copy->projectFilePath = projectFilePath;
+    copy->audioSha256 = audioSha256;
+    copy->notes = notes;
+    copy->globalPitchOffset = globalPitchOffset;
+    copy->formantShift = formantShift;
+    copy->volume = volume;
+    copy->pitchCenter = pitchCenter;
+    copy->f0DirtyStart = f0DirtyStart;
+    copy->f0DirtyEnd = f0DirtyEnd;
+    copy->modified = modified;
+    copy->loopRange = loopRange;
+    copy->replaceRanges = replaceRanges;
+    copy->doubleGroup = doubleGroup;
+    copy->useProjectKey = useProjectKey;
+    copy->detectedKeyRoot = detectedKeyRoot;
+    copy->detectedKeyMode = detectedKeyMode;
+    copy->preferredScaleMode = preferredScaleMode;
+    copy->scaleRootNote = scaleRootNote;
+    copy->macroParameters = macroParameters;
+
+    const auto &from = audioData;
+    auto &to = copy->audioData;
+    if (keepWaveform)
+        to.waveform = from.waveform;
+    to.sampleRate = from.sampleRate;
+    to.timelineOffsetSeconds = from.timelineOffsetSeconds;
+    to.playbackRegionRanges = from.playbackRegionRanges;
+    to.rawF0 = from.rawF0;
+    to.cleanedF0 = from.cleanedF0;
+    to.denseF0 = from.denseF0;
+    to.f0 = from.f0;
+    to.baseF0 = from.baseF0;
+    to.basePitch = from.basePitch;
+    to.deltaPitch = from.deltaPitch;
+    to.voicedMask = from.voicedMask;
+    to.vadMask = from.vadMask;
+    to.segmentChunkRanges = from.segmentChunkRanges;
+    // Doubles align to this track by these (the mel itself stays here).
+    to.alignFeatures = !from.alignFeatures.empty() || from.melSpectrogram.empty()
+                           ? from.alignFeatures
+                           : TimingAligner::fromMel(from.melSpectrogram, from.voicedMask).data;
+    return copy;
 }
 
 void Project::addNote(Note note)
@@ -312,7 +366,7 @@ void Project::setUseProjectKey(bool inherit)
 void Project::setProjectKey(int root, ScaleMode mode)
 {
     macroParameters->projectKeyRoot = juce::jlimit(0, 11, root);
-    if (mode >= ScaleMode::Major && mode <= ScaleMode::WholeTone)
+    if ((mode >= ScaleMode::Major && mode <= ScaleMode::WholeTone) || mode == ScaleMode::Custom)
         macroParameters->projectKeyMode = mode;
     macroParameters->projectKeyInitialized = true;
     modified = true;
@@ -362,7 +416,7 @@ void Project::setScaleRootNote(int noteInOctave)
 
 void Project::setPitchReferenceHz(int hz)
 {
-    const int normalized = juce::jlimit(420, 450, hz);
+    const int normalized = juce::jlimit(400, 480, hz);
     if (macroParameters->pitchReferenceHz == normalized)
         return;
 

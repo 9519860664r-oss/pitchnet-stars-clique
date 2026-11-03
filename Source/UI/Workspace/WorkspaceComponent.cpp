@@ -1,4 +1,5 @@
 #include "WorkspaceComponent.h"
+#include "../../Utils/UI/Skin.h"
 
 WorkspaceComponent::WorkspaceComponent()
 {
@@ -46,8 +47,11 @@ bool WorkspaceComponent::SlideAnimation::advance(juce::uint32 nowMs, int duratio
 
 void WorkspaceComponent::paint(juce::Graphics& g)
 {
-    // Clean flat background
-    g.fillAll(APP_COLOR_BACKGROUND);
+    // Clean flat background (Stars Clique: the glowing backdrop)
+    if (Skin::starsClique())
+        Skin::paintBackdrop(g, *this);
+    else
+        g.fillAll(APP_COLOR_BACKGROUND);
 }
 
 void WorkspaceComponent::resized()
@@ -68,6 +72,8 @@ void WorkspaceComponent::resized()
     // Left panel: slides in from the left edge and pushes the main view. The
     // container keeps its full width and is positioned partly off-screen while
     // animating, so its content never reflows mid-slide.
+    // Stars Clique: a wider track list, closer to the design's 266 px card.
+    leftPanelWidth = Skin::starsClique() ? 236 : panelContainerWidth * 2 / 3 + 15;
     const float leftProgress = juce::jlimit(0.0f, 1.0f, leftPanelSlide.progress);
     if (leftProgress > 0.001f)
     {

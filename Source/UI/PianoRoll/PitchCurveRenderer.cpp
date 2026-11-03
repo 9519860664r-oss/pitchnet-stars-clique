@@ -347,7 +347,8 @@ void PitchCurveRenderer::draw(juce::Graphics &g, const Params &params)
       }
     }
 
-    g.strokePath(path, juce::PathStrokeType(strokeWidth));
+    // Stars Clique: a thinner line, so it does not compete with the notes.
+    g.strokePath(path, juce::PathStrokeType(Skin::starsClique() ? strokeWidth * 0.8f : strokeWidth));
   };
 
   if (params.showActualF0Debug)

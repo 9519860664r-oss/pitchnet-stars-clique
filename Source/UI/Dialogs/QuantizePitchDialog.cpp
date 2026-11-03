@@ -13,7 +13,8 @@ class Content final : public juce::Component
 {
 public:
   Content(float initialPitchCenter, float initialPitchDrift, bool initialSnapToScale,
-          std::function<void(float, bool, float, bool)> preview,
+          bool initialIncludeManual,
+          std::function<void(float, bool, float, bool, bool)> preview,
           std::function<void(bool)> completed, std::function<void()> refreshPreview)
       : onPreview(std::move(preview)), onComplete(std::move(completed)),
         onRefreshPreview(std::move(refreshPreview))
@@ -44,6 +45,12 @@ public:
 
     snapToScale.setButtonText(TR("quantize.snap_to_scale"));
 
+    // Notes edited by hand are left alone unless included.
+    includeManual.setToggleState(initialIncludeManual, juce::dontSendNotification);
+    includeManual.onClick = [this] { previewCorrection(); };
+    includeManual.setButtonText("Include hand-edited");
+    includeManual.setTooltip("Also correct notes whose pitch you moved by hand");
+
     setupButton(cancelButton, TR("dialog.cancel"));
     setupButton(okButton, TR("dialog.ok"));
     cancelButton.onClick = [this] { finish(false); };
@@ -54,6 +61,7 @@ public:
     addAndMakeVisible(pitchDriftLabel);
     addAndMakeVisible(pitchDrift);
     addAndMakeVisible(snapToScale);
+    addAndMakeVisible(includeManual);
     addAndMakeVisible(cancelButton);
     addAndMakeVisible(okButton);
   }
@@ -69,7 +77,7 @@ public:
 
   void paint(juce::Graphics &g) override
   {
-    g.setColour(juce::Colour(0xFF181818));
+    g.setColour(Skin::colour(0xFF181818u));
     g.fillRoundedRectangle(getLocalBounds().toFloat(), 10.0f);
     g.setColour(APP_COLOR_BORDER.withAlpha(0.55f));
     g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), 10.0f, 1.0f);
@@ -85,7 +93,9 @@ public:
     row = area.removeFromTop(32);
     pitchDriftLabel.setBounds(row.removeFromLeft(94));
     pitchDrift.setBounds(row);
-    area.removeFromTop(10);
+    area.removeFromTop(6);
+    includeManual.setBounds(area.removeFromTop(24).removeFromLeft(200));
+    area.removeFromTop(6);
     auto actionRow = area.removeFromTop(24);
     snapToScale.setBounds(actionRow.removeFromLeft(148));
     auto buttons = actionRow.removeFromRight(160).translated(1, 0);
@@ -99,12 +109,22 @@ private:
   {
     button.setButtonText(text);
     button.setLookAndFeel(&DarkLookAndFeel::getInstance());
-    button.setColour(juce::TextButton::buttonColourId, juce::Colour(0xFF5B5B5B));
-    button.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xFF3E3E3E));
-    button.setColour(juce::TextButton::textColourOffId, juce::Colour(0xFFEFEFEF));
+    button.setColour(juce::TextButton::buttonColourId, Skin::colour(0xFF5B5B5Bu));
+    button.setColour(juce::TextButton::buttonOnColourId, Skin::colour(0xFF3E3E3Eu));
+    button.setColour(juce::TextButton::textColourOffId, Skin::colour(0xFFEFEFEFu));
     button.setMouseCursor(juce::MouseCursor::PointingHandCursor);
   }
 
+public:
+  void setAndAccept(float value, bool snap)
+  {
+    snapToScale.setToggleState(snap, juce::dontSendNotification);
+    pitchCenter.setValue(value, juce::dontSendNotification);
+    previewCorrection();
+    finish(true);
+  }
+
+private:
   void finish(bool accepted)
   {
     if (finished)
@@ -131,7 +151,8 @@ private:
       return;
     if (onPreview)
       onPreview(static_cast<float>(pitchCenter.getValue()), snapToScale.getToggleState(),
-                static_cast<float>(pitchDrift.getValue()), driftEdited);
+                static_cast<float>(pitchDrift.getValue()), driftEdited,
+                includeManual.getToggleState());
     previewPending = true;
     if (!sliderDragging)
       refreshCorrection();
@@ -146,7 +167,7 @@ private:
       onRefreshPreview();
   }
 
-  std::function<void(float, bool, float, bool)> onPreview;
+  std::function<void(float, bool, float, bool, bool)> onPreview;
   std::function<void(bool)> onComplete;
   std::function<void()> onRefreshPreview;
   bool sliderDragging = false;
@@ -157,12 +178,19 @@ private:
   MacroSlider pitchDrift;
   bool driftEdited = false;
   StyledToggleButton snapToScale;
+  StyledToggleButton includeManual;
   juce::TextButton cancelButton, okButton;
   bool finished = false;
 };
 
 juce::Component::SafePointer<Content> activePopup;
 } // namespace
+
+void setAndAccept(float pitchCenter, bool snapToScale)
+{
+  if (auto *content = activePopup.getComponent())
+    content->setAndAccept(pitchCenter, snapToScale);
+}
 
 void dismissPopup()
 {
@@ -172,7 +200,8 @@ void dismissPopup()
 
 void showPopup(juce::Component *parent, juce::Rectangle<int> anchorBounds,
                float initialPitchCenter, float initialPitchDrift, bool initialSnapToScale,
-               std::function<void(float, bool, float, bool)> onPreview,
+               bool initialIncludeManual,
+               std::function<void(float, bool, float, bool, bool)> onPreview,
                std::function<void(bool)> onComplete,
                std::function<void()> onRefreshPreview)
 {
@@ -182,8 +211,9 @@ void showPopup(juce::Component *parent, juce::Rectangle<int> anchorBounds,
   dismissPopup();
 
   constexpr int width = 340;
-  constexpr int height = 124;
+  constexpr int height = 154;
   auto *content = new Content(initialPitchCenter, initialPitchDrift, initialSnapToScale,
+                              initialIncludeManual,
                               std::move(onPreview), std::move(onComplete),
                               std::move(onRefreshPreview));
   content->setSize(width, height);

@@ -26,76 +26,88 @@ PianoRollInteractionContext::PianoRollInteractionContext(
       onNoteDragAudition(component.onNoteDragAudition),
       onNoteDragAuditionFinished(component.onNoteDragAuditionFinished),
       onLoopRangeChanged(component.onLoopRangeChanged),
-      onReinterpolateUV(component.onReinterpolateUV), component(component)
+      onReinterpolateUV(component.onReinterpolateUV), componentRef(component)
 {
 }
 
-void PianoRollInteractionContext::repaint() { component.repaint(); }
+void PianoRollInteractionContext::repaint() { componentRef.repaint(); }
 
 void PianoRollInteractionContext::setMouseCursor(
     const juce::MouseCursor &cursorType)
 {
-  component.setMouseCursor(cursorType);
+  componentRef.setMouseCursor(cursorType);
 }
 
 float PianoRollInteractionContext::midiToY(float midiNote) const
 {
-  return component.midiToY(midiNote);
+  return componentRef.midiToY(midiNote);
 }
 
 float PianoRollInteractionContext::yToMidi(float y) const
 {
-  return component.yToMidi(y);
+  return componentRef.yToMidi(y);
 }
 
 float PianoRollInteractionContext::timeToX(double time) const
 {
-  return component.timeToX(time);
+  return componentRef.timeToX(time);
 }
 
 double PianoRollInteractionContext::xToTime(float x) const
 {
-  return component.xToTime(x);
+  return componentRef.xToTime(x);
 }
 
 double PianoRollInteractionContext::snapTimeToTimelineGrid(
     double timeSeconds) const
 {
-  return component.snapTimeToTimelineGrid(timeSeconds);
+  return componentRef.snapTimeToTimelineGrid(timeSeconds);
+}
+
+double PianoRollInteractionContext::noteTimeGridSeconds() const
+{
+  return componentRef.timelineDisplayMode == TimelineDisplayMode::Beats
+             ? componentRef.getTimelineGridSeconds()
+             : 0.0;
+}
+
+bool PianoRollInteractionContext::toggleMuteSelectedNotes()
+{
+  return componentRef.toggleMuteSelectedNotes();
 }
 
 bool PianoRollInteractionContext::isCanvasPoint(
     const juce::MouseEvent &e) const
 {
-  return component.isCanvasPoint(e);
+  return componentRef.isCanvasPoint(e);
 }
 
 Note *PianoRollInteractionContext::findNoteAt(float x, float y)
 {
-  return component.findNoteAt(x, y);
+  return componentRef.findNoteAt(x, y);
 }
 
 std::vector<Note *> PianoRollInteractionContext::getSelectedNotes() const
 {
-  return component.getSelectedNotes();
+  return componentRef.getSelectedNotes();
 }
 
 void PianoRollInteractionContext::updatePitchToolHandlesFromSelection()
 {
-  component.updatePitchToolHandlesFromSelection();
+  componentRef.updatePitchToolHandlesFromSelection();
 }
 
 void PianoRollInteractionContext::invalidateWaveformCache()
 {
-  component.invalidateWaveformCache();
+  componentRef.invalidateWaveformCache();
 }
 
 void PianoRollInteractionContext::invalidateBasePitchCache()
 {
-  component.invalidateBasePitchCache();
+  componentRef.invalidateBasePitchCache();
 }
 
 void PianoRollInteractionContext::updatePitchDrawingConfirmation()
 {
-  component.updatePitchDrawingConfirmationPopup();
+  componentRef.updatePitchDrawingConfirmationPopup();
 }

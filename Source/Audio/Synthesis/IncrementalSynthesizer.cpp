@@ -6,6 +6,7 @@
 #include "../../Utils/Constants.h"
 #include "../../Utils/Localization.h"
 #include "../../Utils/TimingRegionUtils.h"
+#include "../../Utils/NoteTimeMap.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -45,7 +46,8 @@ struct CommitFrameRange {
 
 bool hasTimingEdit(const Note &note) {
   return note.getStartFrame() != note.getSrcStartFrame() ||
-         note.getEndFrame() != note.getSrcEndFrame();
+         note.getEndFrame() != note.getSrcEndFrame() ||
+         !note.getWarpAnchors().empty();
 }
 
 // A timing edit needs a broad waveform commit only while its output position
@@ -170,9 +172,16 @@ void applyNoteTimingToMel(const Project &project, int rangeStart,
     for (const auto &span : getPreservedTimingSpans(project, note))
       moveMelInterval(sourceMel, span, rangeStart, rangeEnd, melRange);
 
-    retimeMelInterval(sourceMel, note.getSrcStartFrame(),
-                      note.getSrcEndFrame(), note.getStartFrame(),
-                      note.getEndFrame(), rangeStart, rangeEnd, melRange);
+    // Along the note's time map: sibilants keep their length, warp anchors
+    // pin moments inside the note (an even stretch when it has neither).
+    if (note.getSrcDurationFrames() <= 0 || note.getDurationFrames() <= 0)
+      continue;
+    const auto knots = NoteTimeMap::knots(note);
+    const int overlapStart = std::max(rangeStart, note.getStartFrame());
+    const int overlapEnd = std::min(rangeEnd, note.getEndFrame());
+    for (int frame = overlapStart; frame < overlapEnd; ++frame)
+      melRange[static_cast<size_t>(frame - rangeStart)] = interpolateMelFrame(
+          sourceMel, NoteTimeMap::sourceFrameFor(knots, frame));
   }
 }
 
@@ -220,9 +229,14 @@ void applyNoteTimingToSourceFrames(const Project &project, int rangeStart,
     for (const auto &span : getPreservedTimingSpans(project, note))
       moveSourceFrameInterval(span, rangeStart, rangeEnd, sourceFrameMap);
 
-    retimeSourceFrameInterval(note.getSrcStartFrame(), note.getSrcEndFrame(),
-                              note.getStartFrame(), note.getEndFrame(),
-                              rangeStart, rangeEnd, sourceFrameMap);
+    if (note.getSrcDurationFrames() <= 0 || note.getDurationFrames() <= 0)
+      continue;
+    const auto knots = NoteTimeMap::knots(note);
+    const int overlapStart = std::max(rangeStart, note.getStartFrame());
+    const int overlapEnd = std::min(rangeEnd, note.getEndFrame());
+    for (int frame = overlapStart; frame < overlapEnd; ++frame)
+      sourceFrameMap[static_cast<size_t>(frame - rangeStart)] =
+          NoteTimeMap::sourceFrameFor(knots, frame);
   }
 }
 
@@ -646,9 +660,13 @@ IncrementalSynthesizer::generateBlendMask(int startFrame, int endFrame,
   // orig/synth combing artifacts at note junctions.
   std::vector<float> frameMask(numFrames, 1.0f);
 
-  // Keep original audio only for long unvoiced runs (e.g. clear breaths/silence),
-  // not for short UV gaps between notes.
-  constexpr int kKeepOriginalUnvoicedFrames = 24;
+  // Keep original audio for unvoiced runs: sibilants, breaths, rasp and creak
+  // the detector finds no pitch in. Synthesising them meant feeding the
+  // vocoder an F0 interpolated across the gap, which turned rasp into a
+  // steady buzz (a 23-frame creak just under the old 24-frame limit did).
+  // Pitch editors likewise leave unpitched material untouched. Gaps of a few
+  // frames between notes stay synthesised so junctions do not comb.
+  constexpr int kKeepOriginalUnvoicedFrames = 4;
   if (numFrames > 0 && totalFrames > 0) {
     int i = 0;
     while (i < numFrames) {
@@ -675,6 +693,51 @@ IncrementalSynthesizer::generateBlendMask(int startFrame, int endFrame,
         for (int k = runStart; k < runEnd; ++k)
           frameMask[k] = 0.0f;
       }
+    }
+  }
+
+  // Sibilants: a note's detected sibilants keep their original
+  // sound however short ("t", "k"), as long as the note sits where it was
+  // sung. Sibilants removed by hand are pitch-shifted with the note.
+  if (numFrames > 0) {
+    auto setFrames = [&](int first, int last, float value) {
+      for (int f = std::max(first, startFrame); f < std::min(last, endFrame); ++f)
+        frameMask[static_cast<size_t>(f - startFrame)] = value;
+    };
+    const auto &allNotes = project->getNotes();
+    // A note joined legato to the next (or previous) one: a short unvoiced
+    // run at that junction stays synthesised, as it always has, so the
+    // join does not comb. Only runs of the old minimum keep the original.
+    auto joined = [&allNotes](const Note &note, bool before) {
+      for (const auto &other : allNotes)
+        if (&other != &note && !other.isRest() &&
+            (before ? std::abs(other.getEndFrame() - note.getStartFrame()) <= 1
+                    : std::abs(other.getStartFrame() - note.getEndFrame()) <= 1))
+          return true;
+      return false;
+    };
+    for (const auto &note : allNotes) {
+      if (note.isRest() || !note.hasSibilantInfo() ||
+          note.getEndFrame() <= startFrame || note.getStartFrame() >= endFrame)
+        continue;
+      int head = note.getSibilantHead();
+      int tail = note.getSibilantTail();
+      if (!note.isAllSibilant() && !note.getSibilantsSetByHand()) {
+        if (head < kKeepOriginalUnvoicedFrames && joined(note, true))
+          head = 0;
+        if (tail < kKeepOriginalUnvoicedFrames && joined(note, false))
+          tail = 0;
+      }
+      if (note.getSibilantsSetByHand() && note.getSibilantHead() == 0 &&
+          note.getSibilantTail() == 0) {
+        setFrames(note.getStartFrame(), note.getEndFrame(), 1.0f);
+        continue;
+      }
+      if (hasTimingEdit(note))
+        continue; // retimed: rendered along its time map instead
+      setFrames(note.getStartFrame(), note.getStartFrame() + head, 0.0f);
+      if (!note.isAllSibilant())
+        setFrames(note.getEndFrame() - tail, note.getEndFrame(), 0.0f);
     }
   }
 
@@ -1451,6 +1514,19 @@ void IncrementalSynthesizer::synthesizeRegion(ProgressCallback onProgress,
           for (int i = 0; i < samplesToWrite; ++i) {
             targetSegment[static_cast<size_t>(i)] *=
                 sampleGain[static_cast<size_t>(i)];
+          }
+
+          // Sibilant Balance: below zero the note's sibilants
+          // get quieter, above zero its pitched part does.
+          for (const auto &note : capturedProject->getNotes()) {
+            if (note.isRest() || std::abs(note.getSibilantBalance()) < 0.0005f)
+              continue;
+            const auto bounds = NoteTimeMap::sibilantBounds(note);
+            const int first = std::max(0, note.getStartFrame() * hopSize - startSample);
+            const int last = std::min(samplesToWrite, note.getEndFrame() * hopSize - startSample);
+            for (int i = first; i < last; ++i)
+              targetSegment[static_cast<size_t>(i)] *= NoteTimeMap::balanceGain(
+                  note, bounds, static_cast<double>(i + startSample), hopSize);
           }
 
           // A neutral dirty note is an explicit reset: its body must be the

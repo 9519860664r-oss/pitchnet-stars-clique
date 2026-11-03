@@ -1,152 +1,110 @@
-<div align="center">
-  <h1>PitchNet</h1>
-  <p>A lightweight pitch editor built with JUCE, featuring neural pitch detection and vocoder resynthesis for real-time preview.</p>
-</div>
+<p align="center">
+  <img src="docs/images/banner.png" alt="PitchNet Stars Clique Edition" width="100%">
+</p>
 
-![PitchNet editor screenshot](docs/images/pitchnet-editor.png)
+<p align="center">
+  <a href="https://github.com/9519860664r-oss/pitchnet-stars-clique/releases/latest"><img alt="Download" src="https://img.shields.io/github/v/release/9519860664r-oss/pitchnet-stars-clique?label=download&color=A970F5&style=for-the-badge"></a>
+  <img alt="Platform" src="https://img.shields.io/badge/Windows-VST3-C084FC?style=for-the-badge">
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-AGPLv3-8098FF?style=for-the-badge"></a>
+</p>
 
-## Origin, attribution, and license
+<p align="center">
+  <b>A neural vocal pitch editor for VST3 hosts.</b><br>
+  Edit several vocal tracks at once, tune backing vocals to the lead and record straight from FL&nbsp;Studio or any VST3 host.
+</p>
 
-PitchNet is a modified derivative of [HachiTune](https://github.com/KCKT0112/HachiTune), an open-source project developed by the HachiTune contributors. It includes substantial code derived from HachiTune, along with subsequent changes by Session Loops and other contributors. This repository does not claim sole authorship of the derived work.
+<p align="center">
+  <sub>Based on <a href="https://github.com/SessionLoops/PitchNet">PitchNet</a> by Session Loops and contributors, which is based on <a href="https://github.com/KCKT0112/HachiTune">HachiTune</a>. Modified by Goth Angel (Stars Clique).</sub>
+</p>
 
-PitchNet is distributed under the [GNU Affero General Public License, version 3](LICENSE) (AGPLv3). The complete license text is included in this repository. When conveying copies or modified versions, preserve all applicable copyright, license, and attribution notices, and make the corresponding source available as required by the AGPLv3.
+<p align="center">
+  <a href="https://github.com/9519860664r-oss/pitchnet-stars-clique/releases/latest"><b>Download the installer</b></a> ·
+  <a href="docs/PitchNet-StarsClique-Manual-EN.pdf"><b>User manual (EN)</b></a> ·
+  <a href="docs/PitchNet-StarsClique-Manual-RU.pdf"><b>Руководство (RU)</b></a> ·
+  <a href="docs/GUIDE.md">Quick start</a> ·
+  <a href="CHANGELOG.md">What's new</a>
+</p>
 
-## Overview
+---
 
-PitchNet is a standalone app and audio plugin for editing vocal pitch in a piano roll. It analyzes audio using neural pitch detectors (RMVPE / FCPE), segments notes with the GAME model, and resynthesizes edits in real time through a neural vocoder (PC-NSF-HiFiGAN). Edits are previewed instantly with minimal latency and exported as audio or MIDI. The plugin supports both ARA hosts and a non-ARA capture workflow.
+## About
+
+**PitchNet** was created by **[Session Loops](https://github.com/SessionLoops/PitchNet) and contributors** (Jie Chen, 一支粉笔, KRKT, hrukalive, Steven Cooper, hyperrealist, 暗雨冥), building on **[HachiTune](https://github.com/KCKT0112/HachiTune)** by the HachiTune contributors. It finds the notes in a vocal recording, shows them as blobs on a piano roll and lets you move, stretch, tune and reshape them, with a neural vocoder rendering the result in real time. All of that is their work.
+
+**The Stars Clique Edition** is a modified version by **Goth Angel (Mikhail Mikhalchenko)**, Stars Clique. It adds multitrack editing and recording for hosts without ARA, such as FL&nbsp;Studio, tools for backing vocals and tuning, and a new look. See [CHANGELOG.md](CHANGELOG.md) for what was added.
+
+<p align="center">
+  <img src="docs/images/stars-clique-notes.png" alt="PitchNet Stars Clique Edition" width="92%">
+</p>
 
 ## Features
 
-- Piano roll editing with select, split, pitch drawing, and timing modes
-- Neural pitch detection (FCPE default, RMVPE optional)
-- GAME-based note segmentation with D3PM diffusion model
-- Pitch curve editing with per-note delta, scale, offset, tilt, and variance controls
-- Real-time incremental vocoder resynthesis (PC-NSF-HiFiGAN)
-- High-quality, band-limited audio sample-rate conversion with
-  [r8brain-free-src](https://github.com/avaneev/r8brain-free-src)
-- Undo/redo for all editing operations
-- Export audio (WAV) and MIDI
-- Standalone app plus VST3/AU plugins (AAX optional, ARA supported)
-- GPU acceleration via CUDA or DirectML on Windows; CoreML on macOS
-- Multi-language UI (English, Japanese, Chinese Simplified, Chinese Traditional)
+| | |
+|---|---|
+| 🎚️ **Multitrack in any host** | Every PitchNet instance appears in one track list. Edit as many tracks at once as you like; show the rest as grey ghost notes. |
+| 🎙️ **Recording from the DAW** | Transfer records from the DAW: several tracks in one pass, punch in/out, re-record any section, replace ranges. |
+| 🎼 **Lead and doubles** | Group a lead with its doubles: **Unison** tunes them to the lead note for note, **Timing** lines them up syllable by syllable, live, even with their windows closed. |
+| 🐍 **Sibilants** | "s", "sh", "t", "k" and breaths are found and drawn hatched: they keep their own sound when a note is tuned and their length when it is stretched. Sibilant Balance per note. |
+| 🎚️ **Backing vocals to a reference** | Align to a reference track, tune in unison or an interval, level loudness, quantize time. |
+| 🎯 **Note Inspector** | Type pitch (`C3`, `F#4 +10`, `+2`), vibrato, drift, formant and level for the selected notes. |
+| 🎹 **Keys and tuning** | One key for every track, key changes along the song, A4 from 400 to 480&nbsp;Hz, your own scales with cents. |
+| 🧭 **Fast navigation** | Wheel, Shift+wheel, Ctrl+Alt zoom, hand and zoom tools, zoom from the ruler, fit all. |
+| 🌌 **Two skins** | Stars Clique (deep violet glass) and the original Classic look. |
+| 🧠 **Neural engine, offline** | FCPE pitch detection, GAME note segmentation, PC-NSF-HiFiGAN vocoder. Everything runs on your computer. |
 
-## Download
-To [Download PitchNet](https://sessionloops.com/pitchnet#downloads)
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/stars-clique-main.png" alt="Stars Clique skin with a key change"></td>
+    <td width="50%"><img src="docs/images/classic-skin.png" alt="Classic skin"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Stars Clique skin, with a key change on the ruler</sub></td>
+    <td align="center"><sub>Classic skin</sub></td>
+  </tr>
+</table>
 
-## Requirements
+## Install
 
-- CMake 3.22+
-- C++17 compiler
-- Git (for submodules)
+1. Download **PitchNet-StarsClique-1.0.0-Setup.exe** from [Releases](https://github.com/9519860664r-oss/pitchnet-stars-clique/releases/latest).
+2. Close your DAW and run the installer.
+3. Rescan plug-ins in your DAW and add **PitchNet (Stars Clique ver)**.
 
-### Platform notes
+Windows 10/11 64-bit, any VST3 host (FL Studio, REAPER, Cubase, Studio One, Ableton Live, Bitwig…). About 400&nbsp;MB of disk space.
 
-| Platform | Requirements |
-| --- | --- |
-| Windows | Visual Studio 2019+ with C++ workload, Windows SDK |
-| macOS | Xcode + command line tools |
-| Linux | GCC/Clang, ALSA development libraries |
+## Quick start in FL Studio
 
-## Models and Assets
+1. Put PitchNet on the mixer insert of each vocal track.
+2. In the track list, click the pink **Transfer** ring of the tracks to record.
+3. Play the song. Stop: the notes appear after a short analysis.
+4. Turn on the blue **Edit** pill of every track you want to edit; the white pill shows a track as grey ghosts.
 
-The build expects required model files in `Resources/models` and will fail if any are missing:
+The full guide is in the [user manual](docs/PitchNet-StarsClique-Manual-EN.pdf) ([на русском](docs/PitchNet-StarsClique-Manual-RU.pdf)) and in [docs/GUIDE.md](docs/GUIDE.md).
 
-- `pc_nsf_hifigan.onnx` (vocoder)
-- `rmvpe.onnx` (pitch detection)
-- `fcpe.onnx` (pitch detection, optional)
-- `GAME/` (note segmentation: `encoder.onnx`, `estimator.onnx`, `segmenter.onnx`, `dur2bd.onnx`, `bd2dur.onnx`, `config.json`)
-- `cent_table.bin`
-- `mel_filterbank.bin`
+## Build from source
 
-Other runtime assets live in `Resources/lang` and `Resources/fonts`.
-
-## Build
-
-### Submodules
+Requirements: CMake 3.22+, Visual Studio 2022 or newer with the C++ workload, Git.
 
 ```bash
-git submodule update --init --recursive
-```
-
-### Configure
-
-```bash
+git clone --recursive https://github.com/9519860664r-oss/pitchnet-stars-clique.git
+cd pitchnet-stars-clique
 cmake -B build -DCMAKE_BUILD_TYPE=Release
-```
-
-### Build
-
-```bash
 cmake --build build --config Release
 ```
 
-### Optional flags
+The VST3 lands in `build/PitchNetPlugin_artefacts/Release/VST3/`. ONNX Runtime and the GAME models are downloaded during configure. The installer is built with [Inno Setup 6](https://jrsoftware.org/isinfo.php) from `packaging/windows/PitchNetStarsClique.iss`; the manuals and images are rendered by `python tools/docs/build.py`.
 
-- `-DUSE_CUDA=ON` Enable CUDA execution provider (Windows)
-- `-DUSE_DIRECTML=ON` Enable DirectML execution provider (Windows)
-- `-DUSE_ASIO=ON` Enable ASIO support (Windows)
-- `-DUSE_BUNDLED_CUDA_RUNTIME=ON` Bundle CUDA redistributables (Windows)
-- `-DUSE_BUNDLED_DIRECTML_RUNTIME=ON` Bundle DirectML runtime (Windows)
-- `-DONNXRUNTIME_VERSION=1.19.2` Override ONNX Runtime version
+Optional flags: `-DUSE_DIRECTML=ON` or `-DUSE_CUDA=ON` for GPU inference, `-DPITCHNET_BUILD_TESTS=ON` for the tests (`ctest --test-dir build -C Release`).
 
-Notes:
-- CUDA and DirectML cannot be enabled at the same time.
-- ONNX Runtime is downloaded during CMake configure.
+## Credits
 
-## Plugin Formats
-
-- VST3 and AU are built by default.
-- AAX is built only when `AAX_SDK_PATH` is set and valid.
-- ARA is enabled when the `third_party/ARA_SDK` submodule is present.
-
-## Usage
-
-1. Open an audio file (WAV/MP3/FLAC/OGG).
-2. Analyze to detect pitch and segment notes.
-3. Edit notes in the piano roll — adjust pitch, timing, and expression.
-4. Preview changes in real time via the neural vocoder.
-5. Export the edited audio or MIDI.
-
-### Plugin modes
-
-- **ARA mode**: Direct audio access in supported hosts (e.g., Studio One, Cubase, Logic).
-- **Non-ARA mode**: Auto-capture and process in hosts without ARA.
-
-## Project Structure
-
-```
-PitchNet/
-  Source/
-    Audio/        # Audio engine, pitch detection, synthesis, vocoder
-    Models/       # Project, note, and audio data models
-    UI/           # Piano roll, toolbar, and UI components
-    Utils/        # Resampling, localization, mel spectrogram utilities
-    Undo/         # Undo/redo action system
-    Plugin/       # VST3/AU/AAX/ARA plugin integration
-  Resources/
-    models/       # ONNX models and data files
-    lang/         # Localization JSON (en, ja, zh, zh-TW)
-    fonts/        # UI fonts
-    svg/          # Toolbar icons
-  third_party/
-    JUCE/             # JUCE framework (submodule)
-    ARA_SDK/          # ARA SDK (submodule, optional)
-    r8brain-free-src/ # High-quality audio resampler (submodule)
-  CMakeLists.txt
-```
-
-## Acknowledgements
-
-This project uses the following models from the open-source community:
-
-- [GAME](https://github.com/openvpi/GAME) — Note segmentation model by [OpenVPI](https://github.com/openvpi)
-- [PC-NSF-HiFiGAN](https://github.com/openvpi/vocoders) — Neural vocoder by [OpenVPI](https://github.com/openvpi)
-- [RMVPE](https://github.com/yxlllc/RMVPE) — Robust pitch estimation model by [yxlllc](https://github.com/yxlllc)
-
-Audio sample-rate conversion uses
-[r8brain-free-src](https://github.com/avaneev/r8brain-free-src) by Aleksey
-Vaneev under the MIT License.
+- **PitchNet** (original authors): Session Loops and contributors: Jie Chen, 一支粉笔, KRKT, hrukalive, Steven Cooper, hyperrealist, 暗雨冥 ([SessionLoops/PitchNet](https://github.com/SessionLoops/PitchNet)).
+- **HachiTune**: the HachiTune contributors ([KCKT0112/HachiTune](https://github.com/KCKT0112/HachiTune)), the project PitchNet is derived from.
+- **Stars Clique Edition** (modifications): Goth Angel (Mikhail Mikhalchenko), Stars Clique.
+- **Models**: [GAME](https://github.com/openvpi/GAME) and [PC-NSF-HiFiGAN](https://github.com/openvpi/vocoders) by Team OpenVPI, [FCPE](https://github.com/CNChTu/FCPE) by CN_ChiTu, [RMVPE](https://github.com/yxlllc/RMVPE) by yxlllc.
+- **Libraries**: [JUCE](https://juce.com), [ONNX Runtime](https://onnxruntime.ai), [r8brain-free-src](https://github.com/avaneev/r8brain-free-src) by Aleksey Vaneev, the ARA SDK by Celemony Software GmbH and contributors.
 
 ## License
 
-See `LICENSE`.
+PitchNet Stars Clique Edition is free software under the [GNU Affero General Public License v3](LICENSE) (AGPLv3), like the PitchNet and HachiTune code it is derived from. You may use, study, change and share it. If you convey it or a modified version, you must provide the complete corresponding source under the same license and keep all copyright, license and attribution notices, **including the in-app Credits window**. See [NOTICE.md](NOTICE.md) for the attribution terms and [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt) for third-party licenses.
+
+This repository does not claim sole authorship of the derived work.

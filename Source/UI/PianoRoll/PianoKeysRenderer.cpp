@@ -48,16 +48,25 @@ void PianoKeysRenderer::draw(juce::Graphics &g,
     const auto toneState = pianoRollView::getScaleToneState(
         activeScaleMode, noteInOctave, activeScaleRootNote);
 
-    juce::Colour keyFill = juce::Colour(0xFF232323u);
+    juce::Colour keyFill = Skin::colour(0xFF232323u);
     if (showScaleOverlay)
       keyFill = toneState == pianoRollView::ScaleToneState::OutOfScale
-                    ? juce::Colour(0xFF151515u)
-                    : juce::Colour(0xFF1C1C1Bu);
+                    ? Skin::colour(0xFF151515u)
+                    : Skin::colour(0xFF1C1C1Bu);
+    // Stars Clique: keys like a piano - black keys dark, white keys light (with a
+    // key: out-of-scale dark, in-scale light).
+    if (Skin::starsClique())
+    {
+      const bool dark = showScaleOverlay
+                            ? toneState == pianoRollView::ScaleToneState::OutOfScale
+                            : pianoRollView::isBlackKey(noteInOctave);
+      keyFill = dark ? juce::Colour(0x8C0A0418u) : juce::Colour(0x17FFFFFFu);
+    }
 
     g.setColour(keyFill);
     g.fillRect(0.0f, y, static_cast<float>(pianoKeysWidth),
                pixelsPerSemitone - 1);
-    g.setColour(juce::Colour(0xFF0D0B0Bu));
+    g.setColour(Skin::colour(0xFF0D0B0Bu));
     g.fillRect(0.0f, y + pixelsPerSemitone - 1.0f,
                static_cast<float>(pianoKeysWidth), 1.0f);
 
@@ -65,16 +74,24 @@ void PianoKeysRenderer::draw(juce::Graphics &g,
     juce::String noteName =
         juce::String(noteNames[noteInOctave]) + juce::String(octave);
 
-    juce::Colour textColour = juce::Colour(0xFF9A9A9Au);
+    juce::Colour textColour = Skin::starsClique()
+        ? (pianoRollView::isBlackKey(noteInOctave) ? juce::Colour(0xFFA996CCu)
+                                                   : juce::Colour(0xFFEFE7FBu))
+        : Skin::colour(0xFF9A9A9Au);
     if (showScaleOverlay)
     {
       if (toneState == pianoRollView::ScaleToneState::OutOfScale)
         textColour = textColour.withMultipliedAlpha(0.72f);
     }
     g.setColour(textColour);
-    g.setFont(13.0f);
-    g.drawText(noteName, 0, static_cast<int>(y), pianoKeysWidth,
-               static_cast<int>(pixelsPerSemitone),
-               juce::Justification::centred);
+    g.setFont(Skin::starsClique() ? juce::Font(juce::FontOptions(11.5f, juce::Font::bold)) : juce::Font(13.0f));
+    if (Skin::starsClique()) // right-aligned, as in the design
+      g.drawText(noteName, 0, static_cast<int>(y), pianoKeysWidth - 4,
+                 static_cast<int>(pixelsPerSemitone),
+                 juce::Justification::centredRight);
+    else
+      g.drawText(noteName, 0, static_cast<int>(y), pianoKeysWidth,
+                 static_cast<int>(pixelsPerSemitone),
+                 juce::Justification::centred);
   }
 }

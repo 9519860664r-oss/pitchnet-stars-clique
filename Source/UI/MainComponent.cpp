@@ -1,4 +1,10 @@
 #include "MainComponent.h"
+#include "../Utils/PerfTrace.h"
+#include "../Utils/UI/Skin.h"
+#include "Dialogs/CreditsDialog.h"
+#include "Dialogs/MacroDialog.h"
+#include "Dialogs/CustomScaleDialog.h"
+#include "../Models/ProjectTimelineOffset.h"
 #include "GpuDeviceList.h"
 #include "Main/ExportHelper.h"
 #include "Main/MacMenuIconHelper.h"
@@ -81,7 +87,7 @@ juce::String getCurrentApplicationVersion()
 #elif defined(JucePlugin_VersionString)
   return JucePlugin_VersionString;
 #else
-  return "0.7.2";
+  return "1.0.0";
 #endif
 }
 
@@ -118,41 +124,33 @@ std::optional<UpdateInfo> fetchLatestUpdateInfo(juce::WebInputStream &request)
   if (!request.connect(nullptr))
     return std::nullopt;
 
+  // The Stars Clique edition checks its own GitHub releases (the latest
+  // published release: tag "v1.2.3", notes in "body").
   const auto response = request.readEntireStreamAsString();
-  auto parsed = juce::JSON::parse(response);
-  auto data = parsed.getProperty("data", {});
-
-  if (!data.isArray())
+  auto release = juce::JSON::parse(response);
+  if (!release.isObject())
     return std::nullopt;
 
-  for (const auto &product : *data.getArray())
-  {
-    if (product.getProperty("appId", "").toString() != "PitchNet")
-      continue;
+  const auto latestVersion =
+      normalizeVersionString(release.getProperty("tag_name", "").toString());
 
-    const auto latestVersion =
-        normalizeVersionString(product.getProperty("version", "").toString());
+  if (latestVersion.isEmpty() ||
+      compareVersions(latestVersion, getCurrentApplicationVersion()) <= 0)
+    return std::nullopt;
 
-    if (latestVersion.isEmpty() ||
-        compareVersions(latestVersion, getCurrentApplicationVersion()) <= 0)
-      return std::nullopt;
-
-    UpdateInfo info;
-    info.version = latestVersion;
-    info.releaseNotes = product.getProperty("log", "").toString();
-    return info;
-  }
-
-  return std::nullopt;
+  UpdateInfo info;
+  info.version = latestVersion;
+  info.releaseNotes = release.getProperty("body", "").toString();
+  return info;
 }
 
 void styleUpdateButton(juce::TextButton &button)
 {
   button.setLookAndFeel(&DarkLookAndFeel::getInstance());
-  button.setColour(juce::TextButton::buttonColourId, juce::Colour(0xFF5B5B5Bu));
-  button.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xFF3E3E3Eu));
-  button.setColour(juce::TextButton::textColourOffId, juce::Colour(0xFFEFEFEFu));
-  button.setColour(juce::TextButton::textColourOnId, juce::Colour(0xFFEFEFEFu));
+  button.setColour(juce::TextButton::buttonColourId, Skin::colour(0xFF5B5B5Bu));
+  button.setColour(juce::TextButton::buttonOnColourId, Skin::colour(0xFF3E3E3Eu));
+  button.setColour(juce::TextButton::textColourOffId, Skin::colour(0xFFEFEFEFu));
+  button.setColour(juce::TextButton::textColourOnId, Skin::colour(0xFFEFEFEFu));
   button.setMouseCursor(juce::MouseCursor::PointingHandCursor);
 }
 
@@ -192,7 +190,7 @@ public:
     releaseNotesEditor.setText(releaseNotes, juce::dontSendNotification);
     releaseNotesEditor.applyFontToAllText(AppFont::getFont(updateSubtitleFontSize));
     releaseNotesEditor.setColour(juce::TextEditor::backgroundColourId,
-                                 juce::Colour(0xFF191717u));
+                                 Skin::colour(0xFF191717u));
     releaseNotesEditor.setColour(juce::TextEditor::textColourId,
                                  APP_COLOR_TEXT_PRIMARY);
     releaseNotesEditor.setColour(juce::TextEditor::outlineColourId,
@@ -256,10 +254,10 @@ public:
   void paint(juce::Graphics &g) override
   {
     auto bounds = getLocalBounds().toFloat();
-    g.setColour(juce::Colour(0xFF333333u));
+    g.setColour(Skin::colour(0xFF333333u));
     g.fillRoundedRectangle(bounds, 7.0f);
 
-    g.setColour(juce::Colour(0xFFEFEFEFu));
+    g.setColour(Skin::colour(0xFFEFEFEFu));
     g.setFont(AppFont::getFont(16.0f));
     g.drawText(TR("update.title"), 24, 24, getWidth() - 48, 24,
                juce::Justification::centred, false);
@@ -391,7 +389,7 @@ public:
         juce::dontSendNotification);
     noticesEditor.applyFontToAllText(AppFont::getFont(aboutNoticesFontSize));
     noticesEditor.setColour(juce::TextEditor::backgroundColourId,
-                            juce::Colour(0xFF191717u));
+                            Skin::colour(0xFF191717u));
     noticesEditor.setColour(juce::TextEditor::textColourId,
                             APP_COLOR_TEXT_PRIMARY);
     noticesEditor.setColour(juce::TextEditor::outlineColourId,
@@ -438,7 +436,7 @@ public:
   void paint(juce::Graphics &g) override
   {
     auto bounds = getLocalBounds().toFloat();
-    g.setColour(juce::Colour(0xFF333333u));
+    g.setColour(Skin::colour(0xFF333333u));
     g.fillRoundedRectangle(bounds, 7.0f);
   }
 
@@ -746,6 +744,7 @@ MainComponent::MainComponent(bool enableAudioDevice)
 
   // Left side panel (slides in from the left, same width as the right panel).
   workspace.setLeftPanelContent("tracks", TR("panel.tracks"), &trackListPanel);
+  trackListPanel.onSpreadUnisonChanged = [this](bool on) { pianoRoll.setSpreadUnison(on); };
   trackListPanel.onPreferredHeightChanged = [this]()
   {
     workspace.refreshLeftPanelContentHeight();
@@ -866,6 +865,57 @@ MainComponent::MainComponent(bool enableAudioDevice)
   {
     pianoRoll.setScaleModePreview(mode);
   };
+  toolbar.onSkinChanged = [this]
+  {
+    // Everything repaints in the new skin; controls that keep their own
+    // colours pick it up the next time the window opens.
+    if (auto *top = getTopLevelComponent())
+    {
+      top->sendLookAndFeelChange();
+      top->repaint();
+    }
+    pianoRoll.refreshSkin();
+    resized();
+    repaint();
+  };
+  toolbar.onCreditsRequested = [this] { CreditsDialog::showPopup(this); };
+  toolbar.onExportMidi = [this] { exportMidiFile(); };
+  toolbar.onEditCustomScale = [this]
+  {
+    auto anchor = toolbar.getScaleButtonBounds().translated(toolbar.getX(), toolbar.getY());
+    CustomScaleDialog::showPopup(this, anchor, [this] { refreshSharedKey(); notifyProjectDataChanged(); });
+  };
+  toolbar.onEditReferencePitch = [this]
+  {
+    auto *project = getProject();
+    if (project == nullptr)
+      return;
+    MacroDialog::Field field;
+    field.id = "hz";
+    field.label = "A4";
+    field.min = 400;
+    field.max = 480;
+    field.step = 1;
+    field.value = project->getPitchReferenceHz();
+    field.suffix = " Hz";
+    const int before = project->getPitchReferenceHz();
+    auto anchor = toolbar.getScaleButtonBounds().translated(toolbar.getX(), toolbar.getY());
+    MacroDialog::showPopup(
+        this, juce::Rectangle<int>(anchor.getRight(), anchor.getBottom() + 4, 0, 0),
+        TR("scale.reference_pitch"), {field},
+        [this](const MacroDialog::Values &v, bool) {
+          if (auto *p = getProject())
+            p->setPitchReferenceHz(static_cast<int>(v.at("hz")));
+          refreshSharedKey();
+        },
+        [this, before](bool accepted, const MacroDialog::Values &) {
+          if (auto *p = getProject())
+            if (!accepted)
+              p->setPitchReferenceHz(before);
+          refreshSharedKey();
+          notifyProjectDataChanged();
+        });
+  };
   toolbar.onToggleLoop = [this](bool enabled)
   {
     if (auto *project = getProject())
@@ -928,7 +978,7 @@ MainComponent::MainComponent(bool enableAudioDevice)
   toolbar.setUndoRedoEnabled(undoManager && undoManager->canUndo(),
                              undoManager && undoManager->canRedo());
 
-  // Removed onRender callback - Melodyne-style: edits automatically trigger
+  // Removed onRender callback - edits automatically trigger
   // real-time processing
 
   // Setup piano roll callbacks
@@ -974,7 +1024,7 @@ MainComponent::MainComponent(bool enableAudioDevice)
   pianoRoll.onPitchEditFinished = [this]()
   {
     resynthesizeIncremental();
-    // Melodyne-style: trigger real-time processor update in plugin mode
+    // Trigger real-time processor update in plugin mode
     notifyProjectDataChanged();
     if (isPluginMode() && onPitchEditFinished)
       onPitchEditFinished();
@@ -1035,7 +1085,7 @@ MainComponent::MainComponent(bool enableAudioDevice)
   parameterPanel.onParameterEditFinished = [this]()
   {
     resynthesizeIncremental();
-    // Melodyne-style: trigger real-time processor update in plugin mode
+    // Trigger real-time processor update in plugin mode
     notifyProjectDataChanged();
     if (isPluginMode() && onPitchEditFinished)
       onPitchEditFinished();
@@ -1189,8 +1239,9 @@ void MainComponent::checkForUpdatesOnLaunch()
   juce::Component::SafePointer<MainComponent> safeThis(this);
 
   updateRequest = std::make_unique<juce::WebInputStream>(
-      juce::URL("https://sessionloops.com/api/app/getApps"), false);
+      juce::URL("https://api.github.com/repos/9519860664r-oss/pitchnet-stars-clique/releases/latest"), false);
   updateRequest->withConnectionTimeout(3000);
+  updateRequest->withExtraHeaders("User-Agent: PitchNet-StarsClique\r\nAccept: application/vnd.github+json");
 
   updateCheckThread = std::thread([this, safeThis, skippedVersion]
   {
@@ -1226,7 +1277,7 @@ void MainComponent::showUpdateAvailablePopup(const juce::String &latestVersion,
       },
       []
       {
-        juce::Process::openDocument("https://sessionloops.com/pitchnet#downloads", "");
+        juce::Process::openDocument("https://github.com/9519860664r-oss/pitchnet-stars-clique/releases/latest", "");
       });
 
   dialog->setVisible(true);
@@ -1455,7 +1506,10 @@ juce::Point<int> MainComponent::getSavedWindowSize() const
 
 void MainComponent::paint(juce::Graphics &g)
 {
-  g.fillAll(APP_COLOR_BACKGROUND);
+  if (Skin::starsClique())
+    Skin::paintBackdrop(g, *this);
+  else
+    g.fillAll(APP_COLOR_BACKGROUND);
 }
 
 void MainComponent::paintOverChildren(juce::Graphics &g)
@@ -1470,7 +1524,7 @@ void MainComponent::paintOverChildren(juce::Graphics &g)
 
   const int viewLeft = workspace.getX() + workspace.getMainViewX();
   const int viewRight = workspace.getX() + workspace.getMainViewRight();
-  g.setColour(juce::Colour(0xFF3C3C3Cu));
+  g.setColour(Skin::colour(0xFF3C3C3Cu));
   g.fillRect(viewLeft, y, juce::jmax(0, viewRight - scrollBarWidth - viewLeft), 1);
 }
 
@@ -1500,7 +1554,7 @@ void MainComponent::resized()
 #endif
 
   // Toolbar
-  toolbar.setBounds(bounds.removeFromTop(60));
+  toolbar.setBounds(bounds.removeFromTop(Skin::starsClique() ? 72 : 60));
 
   // Workspace takes remaining space (includes piano roll, panels, and sidebar)
   workspace.setBounds(bounds);
@@ -1532,6 +1586,7 @@ void MainComponent::mouseDoubleClick(const juce::MouseEvent &e)
 
 void MainComponent::timerCallback()
 {
+  PerfTrace::Scope perfScope("main timer", 30.0);
   dispatchPendingDragAudition();
 
   // Handle throttled cursor updates (30Hz max)
@@ -1575,14 +1630,33 @@ void MainComponent::timerCallback()
         float viewWidth =
             static_cast<float>(pianoRoll.getVisibleContentWidth());
         float scrollX = static_cast<float>(pianoRoll.getScrollX());
+        const bool cursorVisible = cursorX >= scrollX && cursorX <= scrollX + viewWidth;
+
+        // Auto-scroll rests while notes are selected (you are
+        // editing them) and when you have scrolled away from the cursor
+        // yourself; the next start of playback brings it back.
+        if (!autoScrollPaused)
+        {
+          if (!pianoRoll.getSelectedNotes().empty())
+            autoScrollPaused = true;
+          else if (!cursorVisible && autoScrollLastX >= 0.0 &&
+                   std::abs(pianoRoll.getScrollX() - autoScrollLastX) > 1.0)
+            autoScrollPaused = true;
+        }
 
         // If cursor is outside visible area, scroll to center it
-        if (cursorX < scrollX || cursorX > scrollX + viewWidth)
+        if (!autoScrollPaused && !cursorVisible)
         {
           double newScrollX =
               std::max(0.0, static_cast<double>(cursorX - viewWidth * 0.3f));
           pianoRoll.setScrollX(newScrollX);
         }
+        autoScrollLastX = pianoRoll.getScrollX();
+      }
+      else if (!isPlaying)
+      {
+        autoScrollPaused = false;
+        autoScrollLastX = -1.0;
       }
     }
   }
@@ -2142,6 +2216,19 @@ void MainComponent::exportFile()
       });
 }
 
+bool MainComponent::writeMidiExport(const juce::File &file, const Project &project,
+                                    const MidiExportOptions &options)
+{
+  // All tracks shown in the editor, each on its own MIDI channel.
+  if (midiExportTracksProvider)
+  {
+    auto tracks = midiExportTracksProvider();
+    if (tracks.size() > 1)
+      return MidiExporter::exportTracksToFile(tracks, file, options);
+  }
+  return MidiExporter::exportToFile(project.getNotes(), file, options);
+}
+
 void MainComponent::exportMidiFile()
 {
   if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
@@ -2210,7 +2297,7 @@ void MainComponent::exportMidiFile()
   toolbar.setProgress(0.6f);
 
   // Export using adjusted pitch data (includes user edits)
-  bool success = MidiExporter::exportToFile(project->getNotes(), file, options);
+  bool success = writeMidiExport(file, *project, options);
 
   toolbar.setProgress(1.0f);
   toolbar.hideProgress();
@@ -2266,8 +2353,7 @@ void MainComponent::exportMidiFile()
         safeThis->toolbar.setProgress(0.6f);
 
         // Export using adjusted pitch data (includes user edits)
-        bool success =
-            MidiExporter::exportToFile(project->getNotes(), file, options);
+        bool success = safeThis->writeMidiExport(file, *project, options);
 
         safeThis->toolbar.setProgress(1.0f);
         safeThis->toolbar.hideProgress();
@@ -3297,134 +3383,9 @@ void MainComponent::updateHostAudioTimelineOffset(double timelineOffsetSeconds)
   if (!project)
     return;
 
+  if (!ProjectTimelineOffset::apply(*project, timelineOffsetSeconds))
+    return;
   auto &audioData = project->getAudioData();
-  if (audioData.waveform.getNumSamples() == 0 || audioData.sampleRate <= 0)
-  {
-    audioData.timelineOffsetSeconds = std::max(0.0, timelineOffsetSeconds);
-    return;
-  }
-
-  const double newOffsetSeconds = std::max(0.0, timelineOffsetSeconds);
-  const double oldOffsetSeconds = std::max(0.0, audioData.timelineOffsetSeconds);
-  if (std::abs(newOffsetSeconds - oldOffsetSeconds) < 0.000001)
-    return;
-
-  const int sampleRate = audioData.sampleRate;
-  const int oldOffsetSamples = std::max(
-      0, static_cast<int>(std::llround(oldOffsetSeconds * sampleRate)));
-  const int newOffsetSamples = std::max(
-      0, static_cast<int>(std::llround(newOffsetSeconds * sampleRate)));
-  const int oldOffsetFrames = std::max(
-      0, static_cast<int>(std::llround(oldOffsetSeconds * sampleRate /
-                                       static_cast<double>(HOP_SIZE))));
-  const int newOffsetFrames = std::max(
-      0, static_cast<int>(std::llround(newOffsetSeconds * sampleRate /
-                                       static_cast<double>(HOP_SIZE))));
-  const int frameDelta = newOffsetFrames - oldOffsetFrames;
-
-  auto repadBuffer = [&](juce::AudioBuffer<float> &buffer)
-  {
-    const int oldSamples = buffer.getNumSamples();
-    if (oldSamples <= 0)
-      return;
-
-    const int contentStart = std::min(oldOffsetSamples, oldSamples);
-    const int contentSamples = oldSamples - contentStart;
-    const int newSamples = newOffsetSamples + contentSamples;
-    juce::AudioBuffer<float> shifted(buffer.getNumChannels(), newSamples);
-    shifted.clear();
-    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-      shifted.copyFrom(ch, newOffsetSamples, buffer, ch, contentStart,
-                       contentSamples);
-    buffer = std::move(shifted);
-  };
-
-  auto repadFloatVector = [&](std::vector<float> &values)
-  {
-    const int oldSize = static_cast<int>(values.size());
-    const int contentStart = std::min(oldOffsetFrames, oldSize);
-    std::vector<float> shifted(static_cast<size_t>(
-        newOffsetFrames + std::max(0, oldSize - contentStart)));
-    std::copy(values.begin() + contentStart, values.end(),
-              shifted.begin() + newOffsetFrames);
-    values = std::move(shifted);
-  };
-
-  auto repadBoolVector = [&](std::vector<bool> &values)
-  {
-    const int oldSize = static_cast<int>(values.size());
-    const int contentStart = std::min(oldOffsetFrames, oldSize);
-    std::vector<bool> shifted(static_cast<size_t>(
-        newOffsetFrames + std::max(0, oldSize - contentStart)), false);
-    for (int i = contentStart; i < oldSize; ++i)
-      shifted[static_cast<size_t>(newOffsetFrames + i - contentStart)] =
-          values[static_cast<size_t>(i)];
-    values = std::move(shifted);
-  };
-
-  auto repadMel = [&](std::vector<std::vector<float>> &frames)
-  {
-    const int oldSize = static_cast<int>(frames.size());
-    const int contentStart = std::min(oldOffsetFrames, oldSize);
-    const size_t numMels = oldSize > 0 ? frames[static_cast<size_t>(
-                                             std::min(contentStart, oldSize - 1))]
-                                             .size()
-                                       : 0;
-    std::vector<std::vector<float>> shifted(
-        static_cast<size_t>(newOffsetFrames + std::max(0, oldSize - contentStart)),
-        std::vector<float>(numMels, 0.0f));
-    std::move(frames.begin() + contentStart, frames.end(),
-              shifted.begin() + newOffsetFrames);
-    frames = std::move(shifted);
-  };
-
-  repadBuffer(audioData.waveform);
-  repadBuffer(audioData.originalWaveform);
-  repadMel(audioData.melSpectrogram);
-  repadFloatVector(audioData.rawF0);
-  repadFloatVector(audioData.cleanedF0);
-  repadFloatVector(audioData.denseF0);
-  repadFloatVector(audioData.f0);
-  repadFloatVector(audioData.baseF0);
-  repadFloatVector(audioData.basePitch);
-  repadFloatVector(audioData.deltaPitch);
-  repadBoolVector(audioData.voicedMask);
-  repadBoolVector(audioData.vadMask);
-
-  auto shiftFrame = [frameDelta](int frame)
-  {
-    return std::max(0, frame + frameDelta);
-  };
-
-  for (auto &note : project->getNotes())
-  {
-    note.setStartFrame(shiftFrame(note.getStartFrame()));
-    note.setEndFrame(shiftFrame(note.getEndFrame()));
-    note.setSrcStartFrame(shiftFrame(note.getSrcStartFrame()));
-    note.setSrcEndFrame(shiftFrame(note.getSrcEndFrame()));
-    note.setRenderedFrames(shiftFrame(note.getRenderedStartFrame()),
-                           shiftFrame(note.getRenderedEndFrame()));
-  }
-
-  for (auto &range : audioData.segmentChunkRanges)
-  {
-    range.first = shiftFrame(range.first);
-    range.second = shiftFrame(range.second);
-  }
-
-  for (auto &chunk : audioData.segmentDebugChunks)
-  {
-    chunk.startFrame = shiftFrame(chunk.startFrame);
-    chunk.endFrame = shiftFrame(chunk.endFrame);
-    for (auto &event : chunk.events)
-    {
-      event.startFrame = shiftFrame(event.startFrame);
-      event.endFrame = shiftFrame(event.endFrame);
-      event.attachedStartFrame = shiftFrame(event.attachedStartFrame);
-    }
-  }
-
-  audioData.timelineOffsetSeconds = newOffsetSeconds;
   toolbar.setTotalTime(audioData.getDuration());
   pianoRoll.setProject(project);
   pianoRollView.setProject(project);
@@ -3703,6 +3664,38 @@ void MainComponent::updateRegionPreviews(MainViewRegionPreviewList previews) {
   pianoRollView.setRegionPreviews(std::move(previews));
 }
 
+void MainComponent::refreshSharedKey() {
+  // Key, A4, custom scale and key changes are shared by every track.
+  if (auto *project = getProject()) {
+    if (!project->getUseProjectKey())
+      project->setUseProjectKey(true);
+    pianoRoll.setPitchReferenceHz(project->getPitchReferenceHz());
+  }
+  pianoRoll.refreshScaleFromProject();
+  parameterPanel.updateGlobalSliders();
+  toolbar.refreshScaleLabel();
+  pianoRoll.repaint();
+}
+
+void MainComponent::setTrackListAvailable(bool available) {
+  toolbar.setLeftPanelAvailable(available);
+  // Without ARA every track shares one key: no per-track override.
+  toolbar.setSharedKeyScope(available);
+  if (!available)
+    workspace.showLeftPanel(false);
+  pianoRoll.setPinnedNotesInClipMode(available);
+  // Open by default the first time; afterwards the user's choice stays.
+  if (available && !trackListShownByDefault) {
+    trackListShownByDefault = true;
+    showTrackList(true);
+  }
+}
+
+void MainComponent::showTrackList(bool show) {
+  workspace.showLeftPanel(show);
+  toolbar.setLeftPanelVisible(workspace.isLeftPanelVisible());
+}
+
 void MainComponent::updateTrackList(
     const std::vector<MainViewTrackEntry> &tracks,
     const juce::String &activeKey) {
@@ -3775,6 +3768,9 @@ void MainComponent::getAllCommands(juce::Array<juce::CommandID> &commands)
       CommandIDs::undo,
       CommandIDs::redo,
       CommandIDs::selectAll,
+      CommandIDs::copyNotes,
+      CommandIDs::cutNotes,
+      CommandIDs::pasteNotes,
 
       // View commands
       CommandIDs::showSettings,
@@ -3868,6 +3864,24 @@ void MainComponent::getCommandInfo(juce::CommandID commandID,
   case CommandIDs::selectAll:
     result.setInfo(TR("command.select_all"), TR("command.select_all.desp"), TR("menu.edit"), 0);
     result.addDefaultKeypress('a', primaryModifier);
+    result.setActive(project != nullptr);
+    break;
+
+  case CommandIDs::copyNotes:
+    result.setInfo("Copy", "Copy the selected notes with their audio", TR("menu.edit"), 0);
+    result.addDefaultKeypress('c', primaryModifier);
+    result.setActive(project != nullptr);
+    break;
+
+  case CommandIDs::cutNotes:
+    result.setInfo("Cut", "Copy the selected notes, then delete them", TR("menu.edit"), 0);
+    result.addDefaultKeypress('x', primaryModifier);
+    result.setActive(project != nullptr);
+    break;
+
+  case CommandIDs::pasteNotes:
+    result.setInfo("Paste", "Paste notes at the cursor, or over the selected notes", TR("menu.edit"), 0);
+    result.addDefaultKeypress('v', primaryModifier);
     result.setActive(project != nullptr);
     break;
 
@@ -4018,11 +4032,23 @@ bool MainComponent::perform(const ApplicationCommandTarget::InvocationInfo &info
     return true;
 
   case CommandIDs::selectAll:
-    if (auto *project = getProject())
+    if (auto *project = getProject(); project != nullptr && pianoRoll.isOwnTrackEditable())
     {
       project->selectAllNotes();
       pianoRoll.repaint();
     }
+    return true;
+
+  case CommandIDs::copyNotes:
+    pianoRoll.copySelectedNotes(false);
+    return true;
+
+  case CommandIDs::cutNotes:
+    pianoRoll.copySelectedNotes(true);
+    return true;
+
+  case CommandIDs::pasteNotes:
+    pianoRoll.pasteNotes();
     return true;
 
   // View commands

@@ -26,5 +26,24 @@ int main()
   CHECK(collectPitchMacroNotes(first, false, {}).size() == 1);
   second.getNotes()[1].setSelected(false);
   CHECK(collectPitchMacroNotes(second, false, {}).size() == 2);
+  // Macro edits: a selection in any region limits Track mode to the
+  // selection everywhere; regions without selected notes are left alone.
+  second.getNotes()[1].setSelected(true);
+  const bool anySelected =
+      pitchMacroScopeHasSelection(first, true, {{0, 30}}) ||
+      pitchMacroScopeHasSelection(second, true, {{40, 60}});
+  CHECK(anySelected);
+  const auto editA = collectPitchMacroEditNotes(first, true, {{0, 30}}, anySelected);
+  const auto editB = collectPitchMacroEditNotes(second, true, {{40, 60}}, anySelected);
+  CHECK(editA.size() == 1 && editA[0] == &first.getNotes()[0]);
+  CHECK(editB.size() == 1 && editB[0] == &second.getNotes()[1]);
+  Project third;
+  third.addNote(Note(0, 10, 60));
+  CHECK(collectPitchMacroEditNotes(third, true, {{0, 10}}, anySelected).empty());
+  // No selection anywhere: every note in the windows.
+  first.getNotes()[0].setSelected(false);
+  second.getNotes()[1].setSelected(false);
+  CHECK(!pitchMacroScopeHasSelection(first, true, {{0, 30}}));
+  CHECK(collectPitchMacroEditNotes(first, true, {{0, 30}}, false).size() == 3);
   std::cout << "Pitch macro scope tests passed\n";
 }

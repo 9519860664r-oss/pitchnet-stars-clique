@@ -5,6 +5,7 @@
 #include "../Utils/Constants.h"
 #include "../Utils/Localization.h"
 #include "../Utils/BasePitchPreview.h"
+#include "../Utils/NoteMacros.h"
 #include "../Undo/UndoActions.h"
 #include "Commands.h"
 #include "PianoRoll/BoxSelector.h"
@@ -101,6 +102,48 @@ public:
   bool extendTimelineTo(double endSeconds);
   Project *getProject() const { return project; }
   std::vector<Note *> getSelectedNotes() const;
+
+  // Note Inspector: set one property of every selected note, with undo.
+  enum class NoteProperty { Pitch, Modulation, Drift, Formant, Amplitude };
+  bool setSelectedNotesProperty(NoteProperty property,
+                                const std::function<float(const Note &)> &valueFor);
+  // Note Off: mute the selection, or bring it back when all muted.
+  bool toggleMuteSelectedNotes();
+
+  // Selection: remember before a change, restore it, invert it,
+  // Select Special (0 same pitch, 1 same pitch in all octaves, 2 all
+  // following the first selected note), select by pitch-ruler key.
+  void rememberSelection();
+  void restoreLastSelection();
+  // Undo All Changes for every note of this track (pitch, formant, level,
+  // timing), as one undo step.
+  void restoreWholeTrack();
+  void invertSelection();
+  void selectSpecial(int kind);
+  void selectNotesOfPitch(int midiNote, bool allOctaves, bool additive);
+  Note *selectionAnchor = nullptr;
+  // Ctrl+C / Ctrl+X / Ctrl+V of notes with their audio (pitch-editor rules).
+  bool copySelectedNotes(bool cut);
+  bool pasteNotes();
+  std::vector<TrackPitchMacroTarget> editableTracks();
+  // Notes of the reference (grey) tracks, in this project's frames.
+  std::vector<NoteMacros::RefNote> referenceTrackNotes() const;
+  // Canvas menu: 0 Quantize Time, 1 Align to Reference, 2 Leveling.
+  std::function<void(int)> onMacroRequested;
+
+  // Replace Ranges (Transfer without ARA): a light band on the time
+  // ruler where this track replaces the DAW track; edges drag; right-click
+  // the ruler for Show / Set to Notes / Reset.
+  void setReplaceRangesAvailable(bool available) { replaceRangesAvailable = available; repaint(); }
+  void setReplaceRangesToNotes();
+
+  // Key changes on the time ruler (shared by every track): from a marker on,
+  // its key applies. Right-click the ruler to add or remove one.
+  void addKeyMarker(double hostSeconds, int root, ScaleMode mode);
+  void removeKeyMarker(int index);
+  std::function<void()> onKeyMarkersChanged;
+  void resetReplaceRanges();
+  std::function<void(const std::vector<std::pair<double, double>> &)> onReplaceRangesEdited;
   PianoRollInteractionContext &getInteractionContext()
   {
     return *interactionContext;
@@ -137,6 +180,9 @@ public:
   void setTimelineDisplayOffset(double seconds);
   double projectToTimeline(double projectSeconds) const;
   double timelineToProject(double timelineSeconds) const;
+  /** Selected notes up or down by semitones (arrow keys; test scripts). */
+  bool transposeSelected(int semitones) { return nudgeSelectedNotesBySemitones(semitones); }
+  static ScaleMode keyModeOf(const Project *p);
   void setTimelineBeatSignature(int numerator, int denominator);
   void setTimelineTempoBpm(double bpm);
   void setTimelineGridDivision(TimelineGridDivision division);
@@ -169,6 +215,43 @@ public:
   // the plain source view.
   void setTrackViewMode(bool shouldShowTrack);
   bool isTrackViewMode() const { return trackViewMode; }
+  // Hosts without ARA: other instances' tracks are open for editing in this
+  // canvas (Ctrl+Edit). Enables the multi-project gestures,
+  // drawing and macros Track mode uses, without Track mode's timeline.
+  void setCoEditInClipMode(bool enabled)
+  {
+    if (coEditInClipMode == enabled)
+      return;
+    coEditInClipMode = enabled;
+    inactiveLayer = {};
+    repaint();
+  }
+  bool isCoEditInClipMode() const { return coEditInClipMode; }
+  bool multiTrackEditing() const { return trackViewMode || coEditInClipMode; }
+  // Spread Unison Tracks: draw each other track's notes a little lower, so
+  // notes of the same pitch on different tracks can be told apart.
+  void setSpreadUnison(bool on) { spreadUnison = on; inactiveLayer = {}; repaint(); }
+  // The window's own track, like every other, can be switched off (Edit
+  // off): its notes, curves and waveform are then hidden here and nothing
+  // of it can be selected or edited. As a ghost it is drawn grey instead.
+  void setOwnTrackEditable(bool editable);
+  // Navigation: see every note (or the cycle range), zoom to a note
+  // or the selection, go back to the previous zoom.
+  void zoomToFitAll();
+  /** Test scripts: show this time span and pitch range. */
+  void zoomToRange(double startSeconds, double endSeconds, float lowMidi, float highMidi)
+  {
+    zoomToSpan(startSeconds, endSeconds, lowMidi, highMidi);
+  }
+  void zoomToNotes(Note *clicked);
+  void restorePreviousZoom();
+  // Redraw everything cached (waveform, other tracks) in a new skin.
+  void refreshSkin() { inactiveLayer = {}; invalidateWaveformCache(); repaint(); }
+  bool isOwnTrackEditable() const { return ownTrackEditable; }
+  // Editor background: keyboard rows, or Pitch Lines.
+  void setPitchLinesBackground(bool on) { pitchLinesBackground = on; repaint(); }
+  bool getPitchLinesBackground() const { return pitchLinesBackground; }
+  float spreadOffsetFor(const MainViewRegionPreview &region) const;
   void centerOnPitchRange(float minMidi, float maxMidi);
   bool centerOnCurrentPitchRange();
   void fitPitchRangeToView(float minMidi, float maxMidi);
@@ -256,6 +339,11 @@ public:
   // Invoked for a double-click on unoccupied canvas space. The owner seeks
   // before toggling transport so playback starts or stops at that position.
   std::function<void(double)> onCanvasEmptyDoubleClick;
+  // Double-click on a reference (pinned, grey) note: its region's key.
+  std::function<void(const juce::String &)> onReferenceNoteDoubleClicked;
+  juce::String pinnedNoteKeyAt(float worldX, float worldY) const;
+  void drawTrackAffiliationDimming(juce::Graphics &g);
+  const Project *affiliationOwner = nullptr; // track of the note held
   std::function<void(float)> onZoomChanged;
   std::function<void(double)> onScrollChanged;
   std::function<void(const LoopRange &)> onLoopRangeChanged;
@@ -273,6 +361,15 @@ public:
   // synchronously, the same click continues into the new region (selecting
   // or dragging the note under the pointer).
   void setRegionPreviews(MainViewRegionPreviewList previews);
+  // Draw pinned tracks' notes in Clip mode too (hosts without ARA, where the
+  // pinned tracks are other PitchNet instances).
+  void setPinnedNotesInClipMode(bool enabled)
+  {
+    if (pinnedNotesInClipMode == enabled)
+      return;
+    pinnedNotesInClipMode = enabled;
+    repaint();
+  }
   std::function<void(const juce::String &)> onInactiveRegionClicked;
 
 private:
@@ -353,9 +450,14 @@ private:
   // onHistoryActionApplied so it is processed like undo/redo.
   void applyRestoreAction(std::unique_ptr<UndoableAction> action);
   void showResetMenu(Note &note);
+  // Sibilant tools: Show Sibilants, the sibilant range of the
+  // selected notes (or the one clicked) and their Sibilant Balance.
+  void showSibilantMenu(juce::Point<int> screenPosition, double clickFrame, Note *clicked);
   void setHoveredNote(Note *note);
   void updateScrollBars();
   bool nudgeSelectedNotesBySemitones(int semitoneDelta);
+  // Delete / Backspace: silence the selected notes (undoable).
+  bool deleteSelectedNotes();
   void reapplyBasePitchForNote(
       Note *note); // Recalculate F0 from base pitch + delta after undo/redo
 
@@ -420,8 +522,6 @@ private:
   void syncTrackPreviewSelection();
   InactiveLayerKey inactiveLayerKey;
   juce::Image inactiveLayer;
-  InactiveLayerKey pinnedLayerKey;
-  juce::Image pinnedLayer;
   std::unique_ptr<ScrollZoomController> scrollZoomController;
   std::unique_ptr<PitchEditor> pitchEditor;
   std::unique_ptr<BoxSelector> boxSelector;
@@ -521,6 +621,44 @@ private:
   bool middleButtonScrubActive = false;
   MainViewRegionPreviewList regionPreviews;
   bool trackViewMode = false;
+  bool pinnedNotesInClipMode = false;
+  bool coEditInClipMode = false;
+  bool spreadUnison = false;
+  // Navigation: zoom history, ruler drag, fit zooms.
+  struct ZoomState { float pps; float ppsSemitone; double scrollX; double scrollY; };
+  std::vector<ZoomState> zoomHistory;
+  double lastZoomRememberMs = 0.0;
+  void rememberZoom();
+  void rememberZoomThrottled();
+  void applyZoomState(float pps, float ppsSemitone, double newScrollX, double newScrollY);
+  void zoomToSpan(double startSeconds, double endSeconds, float lowMidi, float highMidi);
+  bool rulerDragActive = false;
+  int rulerDragAxis = 0; // 0 undecided, 1 cursor, 2 zoom
+  juce::Point<float> rulerDragStart;
+  float rulerDragStartPps = 0.0f;
+  double rulerDragAnchorTime = 0.0;
+  juce::Point<float> modifierZoomAnchor;
+  struct ScrollBarDoubleClick : public juce::MouseListener
+  {
+    explicit ScrollBarDoubleClick(PianoRollComponent &o) : owner(o) {}
+    void mouseDoubleClick(const juce::MouseEvent &) override { owner.zoomToFitAll(); }
+    PianoRollComponent &owner;
+  };
+  ScrollBarDoubleClick scrollBarDoubleClick{*this};
+  bool ownTrackEditable = true;
+  bool pitchLinesBackground = false;
+  std::vector<std::pair<int, int>> lastSelectionKeys;
+  bool replaceRangesAvailable = false;
+  bool replaceRangesShown = true;
+  int replaceDragIndex = -1;
+  bool replaceDragStart = false;
+  bool replaceRangesActive() const;
+  int keyMarkerAt(int componentX) const;
+  void keyMarkersChanged();
+  void drawKeyMarkers(juce::Graphics &g);
+  void drawReplaceRanges(juce::Graphics &g);
+  void showReplaceRangesMenu(const juce::MouseEvent &e);
+  void commitReplaceRanges(std::vector<std::pair<double, double>> ranges);
   double regionPreviewsEndSeconds = 0.0;
   // Set when a click only activated another region (its project was not
   // ready yet), so the rest of that gesture must not edit anything.

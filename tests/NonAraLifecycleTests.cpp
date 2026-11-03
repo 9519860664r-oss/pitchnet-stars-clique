@@ -58,11 +58,12 @@ void capturePreservesTimelineAndWaitsForStop() {
   CHECK(recorded.getSample(0, 99) == 0.5f);
   CHECK(recorded.getMagnitude(0, 100, 200) == 0.0f);
   CHECK(recorded.getSample(0, 300) == 0.5f);
-  capture.processBlock(input, true, 2000); // loop back
+  capture.processBlock(input, true, 2000); // loop back: the take ends here
   CHECK(capture.getHoldReason() == NonAraCaptureController::HoldReason::TimelineJump);
   CHECK(capture.getCapturedSampleCount() == 400);
-  CHECK(!capture.shouldFinalize());
-  capture.processBlock(input, false);
+  CHECK(capture.shouldFinalize());
+  capture.processBlock(input, true, 2100); // still playing: nothing more recorded
+  CHECK(capture.getCapturedSampleCount() == 400);
   NonAraCaptureController::FinalizeResult result;
   CHECK(capture.shouldFinalize());
   CHECK(capture.finalizeCapture(1000.0, result));
@@ -205,11 +206,39 @@ void lifecycleCompletesPendingCacheAndDropsDetachedAudio() {
 }
 } // namespace
 
+
+void punchOutKeepsTheTake() {
+  // Transfer off during playback ends the take and keeps it.
+  NonAraCaptureController capture;
+  capture.prepare(1000.0, 1, 1);
+  capture.setMinCaptureSeconds(0.0);
+  juce::AudioBuffer<float> input(1, 100);
+  for (int i = 0; i < 100; ++i)
+    input.setSample(0, i, 0.5f);
+  capture.resetToWaiting();
+  capture.processBlock(input, true, 5000); // punch in mid-song
+  capture.processBlock(input, true, 5100);
+  capture.requestPunchOut();
+  capture.processBlock(input, true, 5200); // still playing
+  CHECK(capture.shouldFinalize());
+  CHECK(capture.getCapturedSampleCount() == 200);
+  NonAraCaptureController::FinalizeResult result;
+  CHECK(capture.finalizeCapture(1000.0, result));
+  CHECK(result.numSamples == 200);
+  capture.onAnalysisDispatched();
+  // Next arm starts clean.
+  capture.resetToWaiting();
+  capture.processBlock(input, true, 0);
+  CHECK(!capture.shouldFinalize());
+  CHECK(capture.getCapturedSampleCount() == 100);
+}
+
 int main() {
   captureStorageIsAllocatedOnlyWhenArmed();
   capturePreservesTimelineAndWaitsForStop();
   captureFinalizesWhenHostNeverSendsStoppedBlock();
   playbackHonorsSmallHostSeeks();
   lifecycleCompletesPendingCacheAndDropsDetachedAudio();
+  punchOutKeepsTheTake();
   std::cout << "Non-ARA lifecycle tests passed\n";
 }

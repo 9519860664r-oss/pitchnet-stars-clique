@@ -94,6 +94,11 @@ public:
       std::atomic<bool> &pendingRerun,
       bool isPluginMode);
 
+  /** Starts loading the vocoder model on a background thread (a fraction
+      of a second on a GPU), so the first render does not freeze the window
+      while it loads. Safe to call more than once. */
+  void preloadVocoderAsync();
+
   void analyzeAudio(Project &targetProject,
                     const std::function<void(double, const juce::String &)>
                         &onProgress,
@@ -135,6 +140,14 @@ private:
   std::atomic<bool> shuttingDown{false};
   std::atomic<bool> isReloadingModels{false};
   std::thread modelReloadThread;
+
+  // Background vocoder load: a render that finds the model not loaded yet
+  // waits for it here (message thread) instead of loading it in place.
+  std::thread vocoderLoadThread;
+  std::atomic<bool> vocoderLoading{false};
+  bool vocoderLoadFailed = false;
+  std::function<void()> afterVocoderLoad;
+  std::shared_ptr<std::atomic<bool>> aliveToken = std::make_shared<std::atomic<bool>>(true);
 
   // Async load state
   std::thread loaderThread;

@@ -5,6 +5,8 @@
 #include "../../JuceHeader.h"
 #include "../../Models/Project.h"
 #include "CoordinateMapper.h"
+#include "../../Utils/ScaleUtils.h"
+#include <functional>
 
 // Forward declarations to avoid header cycles. Implementations include the
 // full handler headers in NoteRenderer.cpp.
@@ -36,6 +38,12 @@ public:
 
   void setCoordinateMapper(CoordinateMapper *m) { coordMapper = m; }
   void setProject(Project *p) { project = p; }
+  // The key at a note, or nothing when there is no key: notes are then
+  // coloured by how close they are to any semitone.
+  void setKeyForNote(std::function<std::optional<ScaleUtils::Key>(const Note &)> f)
+  {
+    keyForNote = std::move(f);
+  }
   void setSelectHandler(SelectHandler *h) { selectHandler = h; }
   void setSplitHandler(SplitHandler *h) { splitHandler = h; }
   void setPitchEditor(PitchEditor *e) { pitchEditor = e; }
@@ -81,4 +89,5 @@ private:
   double previewCurrentTime = 0.0;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NoteRenderer)
+  std::function<std::optional<ScaleUtils::Key>(const Note &)> keyForNote;
 };

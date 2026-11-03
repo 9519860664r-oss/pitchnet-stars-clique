@@ -2,6 +2,7 @@
 
 #include "InteractionHandler.h"
 #include "../../../Undo/F0FrameEdit.h"
+#include "../../../Undo/TimingAction.h"
 
 #include <limits>
 #include <vector>
@@ -62,6 +63,23 @@ private:
   void prepareDragBasePreview();
   void applyDragBasePreview(float pitchOffsetSemitones);
   void restoreDragBasePreview();
+
+  // Main Tool: the first movement picks the axis - up/down moves
+  // pitch, left/right moves time (on the grid, keeping the offset from it;
+  // Alt: no grid).
+  // Shift+drag from empty space: select every note the pointer touches.
+  bool snakeSelecting = false;
+  // Ctrl+drag: the box adds to the selection.
+  std::vector<Note *> boxInitialSelection;
+  enum class DragAxis { None, Undecided, Pitch, Time };
+  DragAxis dragAxis = DragAxis::None;
+  float axisStartX = 0.0f, axisStartY = 0.0f;
+  std::vector<Note *> timeMoveNotes;
+  std::vector<NoteTimingState> timeMoveBefore;
+  int timeMoveFrames = 0;
+  bool beginTimeMove();
+  void updateTimeMove(float worldX, bool altDown);
+  bool finishTimeMove();
 
   // Single note drag state
   bool isDragging = false;

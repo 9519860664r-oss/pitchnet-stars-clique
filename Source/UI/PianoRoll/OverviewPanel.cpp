@@ -1,4 +1,5 @@
 #include "OverviewPanel.h"
+#include "../../Utils/UI/Skin.h"
 #include "VisualWaveformEnvelope.h"
 #include "../../Utils/ScaleUtils.h"
 #include <algorithm>
@@ -35,7 +36,13 @@ juce::Colour interpolateLayeredColour(juce::Colour first,
   return third.interpolatedWith(fourth, amount * 3.0f - 2.0f);
 }
 
+NoteGradientColours getNoteGradientColoursForAmount(float amount);
+
 NoteGradientColours getNoteGradientColours(float midi, int pitchReferenceHz) {
+  return getNoteGradientColoursForAmount(getPitchCenterAmount(midi, pitchReferenceHz));
+}
+
+NoteGradientColours getNoteGradientColoursForAmount(float amount) {
   static const juce::Colour inTuneCentre(0xFF1983E0u);
   static const juce::Colour inTuneSide(0xFF0021E2u);
   static const juce::Colour firstLayerCentre(0xFFD66CFFu);
@@ -44,8 +51,6 @@ NoteGradientColours getNoteGradientColours(float midi, int pitchReferenceHz) {
   static const juce::Colour secondLayerSide(0xFFF624B7u);
   static const juce::Colour outOfTuneCentre(0xFFF95D5Du);
   static const juce::Colour outOfTuneSide(0xFFFF0000u);
-
-  const float amount = getPitchCenterAmount(midi, pitchReferenceHz);
 
   return {
       interpolateLayeredColour(inTuneCentre, firstLayerCentre,
@@ -245,7 +250,7 @@ void OverviewPanel::paintStaticContent(juce::Graphics &g) {
       maxEnvelope = std::max(maxEnvelope, value);
   const float envelopeScale = maxEnvelope > 0.0f ? 1.0f / maxEnvelope : 1.0f;
 
-  g.setColour(juce::Colour(0xFF484546u));
+  g.setColour(Skin::colour(0xFF484546u));
   for (const auto &waveform : waveforms) {
     const int count = static_cast<int>(waveform.envelope.size());
     juce::Path waveformPath;
@@ -389,8 +394,10 @@ void OverviewPanel::paintStaticContent(juce::Graphics &g) {
         continue;
 
       const float midi = note.getAdjustedMidiNote();
+      // Same colours as the editor: how far the note misses the key in force.
+      const auto key = ScaleUtils::keyAt(*project, startTime + state.displayOffset);
       const auto noteColour =
-          getNoteGradientColours(midi, pitchReferenceHz).side;
+          getNoteGradientColoursForAmount(ScaleUtils::keyMissAmount(midi, key, pitchReferenceHz)).side;
 
       const float x1 = timeToOverviewX(startTime);
       const float x2 = timeToOverviewX(endTime);
@@ -446,7 +453,7 @@ void OverviewPanel::paintPlayhead(juce::Graphics &g) {
         static_cast<float>((state.cursorTime / timelineDuration) *
                            content.getWidth());
 
-    g.setColour(juce::Colour(0xFFC8C7C7u));
+    g.setColour(Skin::colour(0xFFC8C7C7u));
     g.fillRect(playheadX - 0.5f, content.getY(), 1.0f, content.getHeight());
   }
 }

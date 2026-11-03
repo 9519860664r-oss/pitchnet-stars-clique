@@ -62,7 +62,10 @@ void EditorController::requestShutdown()
 
 EditorController::~EditorController()
 {
+  aliveToken->store(false);
   requestShutdown();
+  if (vocoderLoadThread.joinable())
+    vocoderLoadThread.join();
   if (modelReloadThread.joinable())
     modelReloadThread.join();
   if (loaderThread.joinable())
@@ -535,6 +538,26 @@ void EditorController::setHostAudioAsync(
         }); });
 }
 
+void EditorController::preloadVocoderAsync()
+{
+  if (!vocoder || vocoder->isLoaded() || vocoderLoadFailed || vocoderLoading.exchange(true))
+    return;
+  if (vocoderLoadThread.joinable())
+    vocoderLoadThread.join(); // an earlier load, long finished
+  const auto modelPath = PlatformPaths::getVocoderModelFile();
+  vocoderLoadThread = std::thread([this, modelPath, alive = aliveToken] {
+    const bool ok = modelPath.exists() && !shuttingDown.load() && vocoder->loadModel(modelPath);
+    juce::MessageManager::callAsync([this, ok, alive] {
+      if (!alive->load())
+        return;
+      vocoderLoading.store(false);
+      vocoderLoadFailed = !ok;
+      if (auto next = std::exchange(afterVocoderLoad, nullptr))
+        next();
+    });
+  });
+}
+
 void EditorController::resynthesizeIncrementalAsync(
     Project &project,
     const std::function<void(const juce::String &)> &onProgress,
@@ -566,16 +589,22 @@ void EditorController::resynthesizeIncrementalAsync(
   }
   if (!vocoder->isLoaded())
   {
-    if (onProgress)
-      onProgress(TR("progress.loading_vocoder"));
-
-    auto modelPath = PlatformPaths::getVocoderModelFile();
-    if (!modelPath.exists() || !vocoder->loadModel(modelPath))
+    if (vocoderLoadFailed || !PlatformPaths::getVocoderModelFile().exists())
     {
       if (onComplete)
         onComplete(false);
       return;
     }
+    if (onProgress)
+      onProgress(TR("progress.loading_vocoder"));
+    // Loaded in the background; this render runs once it is (the latest
+    // request wins, as a rerun would).
+    afterVocoderLoad = [this, projectPtr = &project, onProgress, onComplete,
+                        pending = &pendingRerun, isPluginMode] {
+      resynthesizeIncrementalAsync(*projectPtr, onProgress, onComplete, *pending, isPluginMode);
+    };
+    preloadVocoderAsync();
+    return;
   }
 
   if (!project.hasDirtyNotes() && !project.hasF0DirtyRange())

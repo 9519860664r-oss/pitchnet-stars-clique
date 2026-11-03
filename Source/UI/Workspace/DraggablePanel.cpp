@@ -1,4 +1,5 @@
 #include "DraggablePanel.h"
+#include "../../Utils/UI/Skin.h"
 #include "PanelContainer.h"
 
 DraggablePanel::DraggablePanel(const juce::String& id, const juce::String& panelTitle)
@@ -22,16 +23,18 @@ DraggablePanel::DraggablePanel(const juce::String& id, const juce::String& panel
 
 void DraggablePanel::paint(juce::Graphics& g)
 {
-    auto bounds = getLocalBounds().toFloat();
-    const float corner = 8.0f;
+    const bool sc = Skin::starsClique();
+    auto bounds = sc ? getLocalBounds().toFloat().reduced(6.0f, 4.0f)
+                         : getLocalBounds().toFloat();
+    const float corner = sc ? 22.0f : 8.0f;
 
     // Clip to rounded rectangle for entire panel
     juce::Path clipPath;
     clipPath.addRoundedRectangle(bounds, corner);
     g.reduceClipRegion(clipPath);
 
-    // Side-panel background
-    g.setColour(juce::Colour(0xFF232323u));
+    // Side-panel background (Stars Clique: translucent glass over the backdrop)
+    g.setColour(sc ? Skin::glass(0.075f) : Skin::colour(0xFF232323u));
     g.fillRect(bounds);
 
     // Gutter behind the scrollbar, as the canvas paints behind its own: the
@@ -48,6 +51,12 @@ void DraggablePanel::paint(juce::Graphics& g)
 void DraggablePanel::paintOverChildren(juce::Graphics& g)
 {
     // Clean rounded border
+    if (Skin::starsClique())
+    {
+        g.setColour(Skin::glass(0.10f));
+        g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(6.5f, 4.5f), 22.0f, 1.0f);
+        return;
+    }
     auto bounds = getLocalBounds().toFloat();
     g.setColour(APP_COLOR_BORDER.withAlpha(0.5f));
     g.drawRoundedRectangle(bounds.reduced(0.5f), 8.0f, 0.75f);

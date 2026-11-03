@@ -1,4 +1,5 @@
 #include "ExportHelper.h"
+#include "../../Utils/UI/Skin.h"
 #include "../../Utils/AudioResampler.h"
 #include "../../Utils/Localization.h"
 #include "../StyledComponents.h"
@@ -161,11 +162,11 @@ public:
 
   void paint(juce::Graphics &g) override {
     auto bounds = getLocalBounds().toFloat();
-    g.setColour(juce::Colour(0xFF232323u));
+    g.setColour(Skin::colour(0xFF232323u));
     g.fillRoundedRectangle(bounds, 10.0f);
 
     auto card = cardBounds.toFloat();
-    g.setColour(juce::Colour(0xFF151515u));
+    g.setColour(Skin::colour(0xFF151515u));
     g.fillRoundedRectangle(card, 8.0f);
     g.setColour(APP_COLOR_BORDER.withAlpha(0.55f));
     g.drawRoundedRectangle(card.reduced(0.5f), 8.0f, 0.75f);
@@ -223,10 +224,10 @@ private:
 
   static void configureButton(juce::TextButton &button) {
     button.setLookAndFeel(&DarkLookAndFeel::getInstance());
-    button.setColour(juce::TextButton::buttonColourId, juce::Colour(0xFF5B5B5Bu));
-    button.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xFF3E3E3Eu));
-    button.setColour(juce::TextButton::textColourOffId, juce::Colour(0xFFEFEFEFu));
-    button.setColour(juce::TextButton::textColourOnId, juce::Colour(0xFFEFEFEFu));
+    button.setColour(juce::TextButton::buttonColourId, Skin::colour(0xFF5B5B5Bu));
+    button.setColour(juce::TextButton::buttonOnColourId, Skin::colour(0xFF3E3E3Eu));
+    button.setColour(juce::TextButton::textColourOffId, Skin::colour(0xFFEFEFEFu));
+    button.setColour(juce::TextButton::textColourOnId, Skin::colour(0xFFEFEFEFu));
     button.setMouseCursor(juce::MouseCursor::PointingHandCursor);
   }
 

@@ -1,4 +1,6 @@
 #include "Vocoder.h"
+#include "../Utils/GpuAdapters.h"
+#include "../Utils/PerfTrace.h"
 #include "../Utils/AppLogger.h"
 #include "../Utils/Constants.h"
 #include "../Utils/PlatformPaths.h"
@@ -44,6 +46,11 @@ namespace
 
 Vocoder::Vocoder()
 {
+#ifdef USE_DIRECTML
+  executionDeviceId = GpuAdapters::fastestDirectMLIndex();
+  if (!GpuAdapters::hasDiscreteGpu())
+    executionDevice = "CPU";
+#endif
 #if PITCHNET_LOGGING_ENABLED
   // Open log file in platform-appropriate logs directory
   auto logPath = PlatformPaths::getLogFile("vocoder_" +
@@ -227,6 +234,13 @@ Vocoder::resolvePreferredModelFile(const juce::File &requestedModelPath) const
 
 bool Vocoder::loadModel(const juce::File &modelPath)
 {
+  // A background load (see EditorController::preloadVocoderAsync) and a
+  // load on demand never run at once; the second finds the model loaded.
+  std::lock_guard<std::mutex> loadLock(loadMutex);
+  if (loaded.load() && modelPath == modelFile)
+    return true;
+  PerfTrace::Scope perfScope("vocoder load " + executionDevice +
+                             (juce::MessageManager::getInstance()->isThisTheMessageThread() ? " ON UI THREAD" : ""));
   const auto preferredModelPath = resolvePreferredModelFile(modelPath);
 #if __APPLE__
   if (preferredModelPath.hasFileExtension("mlmodelc") ||
@@ -475,8 +489,12 @@ std::vector<float> Vocoder::infer(const std::vector<std::vector<float>> &mel,
   if (!loaded || mel.empty() || f0.empty())
     return {};
 
+  const double perfWait = PerfTrace::now();
   // Lock to ensure thread-safe access to ONNX session
   std::lock_guard<std::mutex> lock(inferenceMutex);
+  PerfTrace::Scope perfScope("infer " + executionDevice + " " + juce::String(static_cast<int>(mel.size())) +
+                             " frames (waited " + juce::String(PerfTrace::now() - perfWait, 1) + " ms)" +
+                             (juce::MessageManager::getInstance()->isThisTheMessageThread() ? " ON UI THREAD" : ""));
 
   if (isShuttingDown.load())
     return {};
